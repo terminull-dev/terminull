@@ -32,8 +32,8 @@ test('dashboard inline JavaScript parses', () => {
   const homepage = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   assert.match(html, /class="hero glass-panel"/);
   assert.match(html, /class="workspace-layout"/);
-  assert.match(homepage, /class="hero"/);
-  assert.match(homepage, /Open company workspace/);
+  assert.match(homepage, /class="container hero"/);
+  assert.match(homepage, /href="\/app">Enter TermiNull/);
   assert.doesNotMatch(`${html}\n${homepage}`, /27,500|35,000|SQLite-backed demo|TERM-ORG-DEMO/);
   assert.match(html, /Shielding and unshielding are disabled/);
   assert.match(html, /pool deposits and withdrawals are disabled/);
@@ -118,8 +118,34 @@ test('company privacy preferences are editable but clearly not enforced', () => 
   assert.match(settingsRenderer, /dao_transaction_privacy_level/);
   assert.match(settingsRenderer, /Preferences only — not yet enforced/);
   assert.match(settingsRenderer, /remain publicly visible on-chain/);
-  assert.match(html, /rgba\(45,212,191/);
-  assert.match(html, /rgba\(56,189,248/);
+  assert.match(html, /rgba\(170,136,255/);
+  assert.match(html, /--accent:#a58aff/);
+});
+
+test('dashboard has collapsible function groups and charts only confirmed activity', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'app.html'), 'utf8');
+  const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+    .map(match => match[1])
+    .find(content => content.includes('const tabsFor'));
+  assert.match(html, /brand-mark/);
+  assert.match(html, /--accent:#a58aff/);
+  assert.match(html, /<strong>TERMI<span class="brand-accent">NULL<\/span><\/strong>/);
+  assert.match(script, /<details class="nav-group" data-group=/);
+  assert.match(script, /name:'People & partners'/);
+
+  const chartFunction = script.match(/function renderTreasuryChart\(rows\) \{[\s\S]*?\n    \}/)[0];
+  const renderer = new (require('node:vm').Script)(`${chartFunction}\nrenderTreasuryChart`).runInNewContext({
+    escapeHtml: value => String(value).replace(/[&<>"']/g, '')
+  });
+  assert.match(renderer([]), /No confirmed transaction history to chart yet/);
+  const chart = renderer([
+    { status:'CONFIRMED', timestamp:'2026-01-05T10:00:00.000Z' },
+    { status:'CONFIRMED', timestamp:'2026-02-05T10:00:00.000Z' },
+    { status:'PENDING', timestamp:'2026-02-06T10:00:00.000Z' }
+  ]);
+  assert.match(chart, /Confirmed monthly transaction counts:/);
+  assert.match(chart, /1 confirmed transactions/);
+  assert.equal((chart.match(/<circle /g) || []).length, 2);
 });
 
 test('ZK workspace previews shielding and withdrawals with every control disabled', () => {

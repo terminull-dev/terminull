@@ -3,95 +3,141 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Terminull | Company treasury</title>
+  <meta name="theme-color" content="#101014">
+  <meta name="description" content="TermiNull enterprise treasury and financial operations workspace.">
+  <title>TermiNull — Enterprise Treasury & Financial Operations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="/public/ethers.umd.min.js"></script>
   <style>
-    :root { color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#141617;color:#f1f5f9; }
+    :root { color-scheme:dark;font-family:"DM Sans",ui-sans-serif,system-ui,sans-serif;background:#101014;color:#f5f3f9;--surface:#17171e;--surface-raised:#1d1c25;--border:rgba(255,255,255,.085);--muted:#9996a8;--text:#f5f3f9;--accent:#a58aff;--accent-soft:rgba(165,138,255,.13);--mint:#82d8ba;--gold:#d7bb85; }
     * { box-sizing:border-box; }
-    body { margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0,#25282a 0,#1b1d1f 50%,#141617 100%);background-attachment:fixed; }
+    body { margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% -15%,rgba(117,83,207,.16),transparent 43%),var(--bg,#101014);background-attachment:fixed;-webkit-font-smoothing:antialiased; }
     button,input,select,textarea { font:inherit; }
-    button { border:1px solid rgba(255,255,255,.14);border-radius:.8rem;padding:.7rem .95rem;color:#f8fafc;background:linear-gradient(110deg,#52616c,#443f52);font-weight:650;cursor:pointer;transition:background .16s ease,border-color .16s ease; }
-    button:hover { background:linear-gradient(110deg,#687681,#514b60);border-color:rgba(255,255,255,.25);box-shadow:0 0 0 1px rgba(110,231,220,.12),0 0 18px rgba(56,189,248,.12); }
-    button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible { outline:2px solid #5eead4;outline-offset:2px; }
-    button:disabled { opacity:.45;cursor:not-allowed; }
-    input,select,textarea { width:100%;border:1px solid rgba(255,255,255,.14);border-radius:.65rem;background:#17191a;color:#f8fafc;padding:.7rem .8rem; }
-    input:focus,select:focus,textarea:focus { outline:2px solid rgba(168,180,190,.5);outline-offset:1px; }
-    label { display:block;font-size:.82rem;color:#cbd5e1;margin:.8rem 0 .35rem; }
+    button { border:1px solid rgba(170,136,255,.35);border-radius:.75rem;padding:.7rem .95rem;color:#fff;background:linear-gradient(120deg,#6845a8,#4e397a);font-weight:650;cursor:pointer;transition:background .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease; }
+    button:hover { background:linear-gradient(120deg,#7855b8,#5d468b);border-color:rgba(190,164,255,.65);box-shadow:0 0 22px rgba(170,136,255,.13);transform:translateY(-1px); }
+    button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible { outline:2px solid var(--accent);outline-offset:2px; }
+    button:disabled { opacity:.45;cursor:not-allowed;transform:none; }
+    input,select,textarea { width:100%;border:1px solid var(--border);border-radius:.65rem;background:#15131a;color:var(--text);padding:.7rem .8rem; }
+    input:focus,select:focus,textarea:focus { outline:2px solid rgba(170,136,255,.45);outline-offset:1px; }
+    label { display:block;font-size:.82rem;color:#d3ccdf;margin:.8rem 0 .35rem; }
     h1,h2,h3,p { margin-top:0; } h1 { font-size:clamp(1.55rem,3vw,2.2rem); } h2 { font-size:1.08rem; } h3 { font-size:.96rem; }
-    header { position:sticky;top:0;z-index:3;border-bottom:1px solid rgba(255,255,255,.09);background:rgba(24,26,28,.96);backdrop-filter:blur(20px); }
+    header { position:sticky;top:0;z-index:3;border-bottom:1px solid rgba(170,136,255,.12);background:rgba(24,21,31,.96);backdrop-filter:blur(20px); }
     .topbar,.page-shell,.site-footer { width:min(1600px,100%);margin:0 auto;padding-left:clamp(1rem,4vw,3rem);padding-right:clamp(1rem,4vw,3rem); }
-    .topbar { min-height:68px;display:flex;align-items:center;justify-content:space-between;gap:1rem; }
-    .brand { color:#fff;text-decoration:none;font-weight:800;font-size:1.15rem;letter-spacing:-.03em; }
-    .brand-note,.small { font-size:.78rem; } .brand-note,.muted { color:#9ca3af; }
+    .topbar { min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:1rem; }
+    .brand { display:inline-flex;align-items:center;gap:.7rem;color:#fff;text-decoration:none;font-weight:800;font-size:.95rem;letter-spacing:.025em; }
+    .brand-mark { display:grid;place-items:center;width:2rem;height:2rem;border:1px solid rgba(170,136,255,.45);border-radius:.65rem;color:var(--accent);background:linear-gradient(145deg,rgba(170,136,255,.2),rgba(170,136,255,.04));font-size:1rem;font-weight:850; }
+    .brand-wordmark { display:flex;align-items:baseline;gap:.35rem; }
+    .brand-wordmark strong { font-family:Manrope,ui-sans-serif,sans-serif;font-weight:800;letter-spacing:-.035em; }
+    .brand-accent { color:var(--accent); }
+    .brand-wordmark small { color:var(--muted);font-size:.75rem;font-weight:650;letter-spacing:.08em; }
+    .brand-note,.small { font-size:.78rem; } .brand-note,.muted { color:var(--muted); }
     .header-actions,.row { display:flex;align-items:center;gap:.7rem;flex-wrap:wrap; }
     .header-actions { justify-content:flex-end; }
-    .status-pill,.badge { display:inline-flex;align-items:center;gap:.5rem;border:1px solid rgba(148,163,184,.25);border-radius:999px;padding:.35rem .7rem;color:#cbd5e1;background:rgba(15,17,18,.56);font-size:.7rem;white-space:nowrap; }
-    .status-pill::before { content:"";width:.45rem;height:.45rem;border-radius:50%;background:#87939e; }
-    .page-shell { padding-top:2rem;padding-bottom:2rem; }
-    .glass-panel { position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:1.5rem;background:linear-gradient(145deg,rgba(30,36,40,.97),rgba(23,26,29,.97));box-shadow:0 25px 60px rgba(0,0,0,.4),inset 0 1px 1px rgba(255,255,255,.07); }
-    .hero { display:grid;grid-template-columns:minmax(0,1.45fr) minmax(250px,.9fr);gap:2rem;padding:clamp(1.25rem,3vw,2.3rem);margin-bottom:1.5rem; }
-    .hero::before,.hero::after { content:"";position:absolute;width:19rem;height:19rem;border-radius:50%;filter:blur(75px);opacity:.15;pointer-events:none; }
-    .hero::before { top:-12rem;right:-5rem;background:#38bdf8; } .hero::after { bottom:-14rem;left:20%;background:#34d399; }
+    .status-pill,.badge { display:inline-flex;align-items:center;gap:.5rem;border:1px solid rgba(170,136,255,.22);border-radius:999px;padding:.35rem .7rem;color:#d9c9ff;background:rgba(170,136,255,.08);font-size:.7rem;white-space:nowrap; }
+    .status-pill::before { content:"";width:.45rem;height:.45rem;border-radius:50%;background:#aa88ff;box-shadow:0 0 10px rgba(170,136,255,.7); }
+    .page-shell { padding-top:1.5rem;padding-bottom:2rem; }
+    .glass-panel { position:relative;overflow:hidden;border:1px solid rgba(170,136,255,.14);border-radius:1.25rem;background:linear-gradient(145deg,rgba(27,24,34,.98),rgba(21,19,27,.98));box-shadow:0 24px 60px rgba(0,0,0,.32),inset 0 1px rgba(255,255,255,.035); }
+    .hero { display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.9fr);gap:1.6rem;padding:clamp(1.1rem,2.6vw,1.8rem);margin-bottom:1rem;border-radius:1.25rem; }
+    .hero::before,.hero::after { content:"";position:absolute;width:18rem;height:18rem;border-radius:50%;filter:blur(80px);opacity:.12;pointer-events:none; }
+    .hero::before { top:-12rem;right:-5rem;background:#aa88ff; } .hero::after { bottom:-14rem;left:20%;background:#684ba3; }
     .hero-copy,.hero-stats { position:relative;z-index:1; }
-    .hero-eyebrow { display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem; }
-    .hero-eyebrow span { border:1px solid rgba(170,180,190,.22);border-radius:999px;padding:.35rem .65rem;color:#cbd5e1;background:rgba(84,96,107,.15);font-size:.62rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase; }
-    .hero-copy h1 { margin-bottom:.65rem;font-weight:800;letter-spacing:-.04em; }
-    .hero-copy>p,#signedOut p { max-width:720px;color:#b8c0c7;line-height:1.7;font-size:.9rem; }
-    .identifier { max-width:640px;margin-top:1.2rem;padding:.9rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;border:1px solid rgba(255,255,255,.09);border-radius:1rem;background:rgba(10,12,13,.62); }
-    .identifier-label { color:#9ca3af;font-size:.63rem;letter-spacing:.1em;text-transform:uppercase; }
-    .identifier-value { margin-top:.25rem;color:#d5dce1;font-size:.85rem;font-weight:700;overflow-wrap:anywhere; }
-    .hero-stats { display:grid;grid-template-columns:1fr;gap:.75rem;align-content:center; }
-    .stat-card,.card { border:1px solid rgba(255,255,255,.07);border-radius:1rem;background:linear-gradient(145deg,rgba(42,48,51,.88),rgba(32,35,38,.84));box-shadow:0 10px 30px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.04); }
-    .stat-card:nth-child(1) { border-color:rgba(52,211,153,.2);box-shadow:0 10px 30px rgba(0,0,0,.22),0 0 24px rgba(52,211,153,.06),inset 0 1px rgba(255,255,255,.04); }
-    .stat-card:nth-child(2) { border-color:rgba(56,189,248,.2);box-shadow:0 10px 30px rgba(0,0,0,.22),0 0 24px rgba(56,189,248,.06),inset 0 1px rgba(255,255,255,.04); }
-    .stat-card:nth-child(3) { border-color:rgba(167,139,250,.2);box-shadow:0 10px 30px rgba(0,0,0,.22),0 0 24px rgba(167,139,250,.06),inset 0 1px rgba(255,255,255,.04); }
-    .stat-card { padding:1rem 1.1rem; }
-    .stat-label { color:#9ca3af;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase; }
-    .stat-value { display:block;margin-top:.4rem;color:#e4e9ed;font-size:1.1rem;font-weight:750;overflow-wrap:anywhere; }
-    .stat-detail { margin-top:.3rem;color:#9ca3af;font-size:.72rem; }
-    .notice { border:1px solid rgba(148,163,184,.25);border-radius:.9rem;background:rgba(29,32,34,.94);padding:.85rem 1rem;margin:1rem 0;white-space:pre-wrap; }
-    .notice.error { border-color:#b91c1c;background:#3b1d24; } .notice.success { border-color:#15803d;background:#123522; }
+    .hero-eyebrow { display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:.8rem; }
+    .hero-eyebrow span { border:1px solid rgba(170,136,255,.25);border-radius:999px;padding:.35rem .65rem;color:#d5c3ff;background:rgba(170,136,255,.08);font-size:.62rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase; }
+    .hero-copy h1 { margin-bottom:.55rem;font-weight:760;letter-spacing:-.04em; }
+    .hero-copy>p,#signedOut p { max-width:720px;color:#b5afc0;line-height:1.65;font-size:.88rem; }
+    .identifier { max-width:640px;margin-top:.8rem;padding:.7rem .9rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;border:1px solid rgba(170,136,255,.13);border-radius:.8rem;background:rgba(13,12,17,.58); }
+    .identifier-label { color:var(--muted);font-size:.63rem;letter-spacing:.1em;text-transform:uppercase; }
+    .identifier-value { margin-top:.25rem;color:#e6e0ef;font-size:.85rem;font-weight:700;overflow-wrap:anywhere; }
+    .hero-stats { display:grid;grid-template-columns:1fr;gap:.6rem;align-content:center; }
+    .stat-card,.card { border:1px solid rgba(170,136,255,.13);border-radius:.9rem;background:linear-gradient(145deg,rgba(34,30,41,.92),rgba(26,23,32,.9));box-shadow:0 10px 28px rgba(0,0,0,.18),inset 0 1px rgba(255,255,255,.035); }
+    .stat-card:nth-child(1),.stat-card:nth-child(2),.stat-card:nth-child(3) { border-color:rgba(170,136,255,.18);box-shadow:0 10px 28px rgba(0,0,0,.18),0 0 22px rgba(170,136,255,.035),inset 0 1px rgba(255,255,255,.035); }
+    .stat-card { padding:.8rem 1rem; }
+    .stat-label { color:var(--muted);font-size:.64rem;letter-spacing:.08em;text-transform:uppercase; }
+    .stat-value { display:block;margin-top:.35rem;color:#f2eef8;font-size:1.05rem;font-weight:750;overflow-wrap:anywhere; }
+    .stat-detail { margin-top:.25rem;color:var(--muted);font-size:.7rem; }
+    .notice { border:1px solid rgba(170,136,255,.22);border-radius:.8rem;background:rgba(29,25,37,.96);padding:.85rem 1rem;margin:1rem 0;white-space:pre-wrap; }
+    .notice.error { border-color:#b91c4b;background:#321722; } .notice.success { border-color:#7652aa;background:#211a30; }
     .hidden { display:none!important; } #signedOut { margin:1.5rem 0;padding:1.5rem; }
-    .workspace-context { display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.65fr);gap:1rem;padding:1rem;margin-bottom:1rem; }
+    .workspace-context { display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.65fr);gap:1rem;padding:.8rem 1rem;margin-bottom:1rem; }
     .workspace-context label { margin-top:0; }
-    .workspace-layout { display:grid;grid-template-columns:270px minmax(0,1fr);gap:1.25rem;align-items:start; }
-    .sidebar { padding:1rem; }
-    .sidebar-heading { padding:.4rem .55rem .8rem;margin-bottom:.5rem;border-bottom:1px solid rgba(255,255,255,.07);color:#aab4be;font-size:.65rem;font-weight:750;letter-spacing:.12em;text-transform:uppercase; }
-    .tabs { display:flex;flex-direction:column;gap:.35rem; }
-    .tabs button { width:100%;text-align:left;border-color:transparent;background:transparent;color:#cbd5e1;font-size:.82rem;font-weight:550; }
-    .tabs button:hover { background:rgba(255,255,255,.06); }
-    .tabs button[aria-current="page"] { border-color:rgba(94,234,212,.28);background:linear-gradient(100deg,rgba(20,184,166,.14),rgba(56,189,248,.08));color:#fff;box-shadow:inset 2px 0 #5eead4,0 0 18px rgba(45,212,191,.07); }
-    .privacy-status { margin-top:1rem;padding:.85rem;border:1px solid rgba(255,255,255,.07);border-radius:.9rem;background:rgba(12,14,15,.4); }
-    .privacy-status strong { display:block;margin-bottom:.35rem;color:#cbd5e1;font-size:.72rem; }
-    .privacy-status p { margin:0;color:#9ca3af;font-size:.72rem;line-height:1.5; }
-    .viewport { min-height:620px;padding:clamp(1rem,2vw,1.75rem); }
+    .workspace-layout { display:grid;grid-template-columns:246px minmax(0,1fr);gap:1rem;align-items:start; }
+    .sidebar { position:sticky;top:88px;padding:.9rem; }
+    .sidebar-heading { padding:.4rem .55rem .8rem;margin-bottom:.45rem;border-bottom:1px solid rgba(255,255,255,.07);color:#777183;font-size:.65rem;font-weight:750;letter-spacing:.16em;text-transform:uppercase; }
+    .nav-group { margin:.15rem 0; }
+    .nav-group summary { position:relative;display:flex;align-items:center;justify-content:space-between;list-style:none;padding:.7rem .6rem;color:#8f899b;font-size:.65rem;font-weight:750;letter-spacing:.13em;text-transform:uppercase;cursor:pointer;user-select:none; }
+    .nav-group summary::-webkit-details-marker { display:none; }
+    .nav-group summary::after { content:"⌄";color:#777183;font-size:.85rem;letter-spacing:0;transition:transform .16s ease; }
+    .nav-group[open] summary::after { transform:rotate(180deg); }
+    .tabs { display:flex;flex-direction:column;gap:.2rem;padding:0 .1rem .35rem; }
+    .tabs button { width:100%;text-align:left;border:1px solid transparent;border-radius:.65rem;background:transparent;color:#aaa4b5;font-size:.81rem;font-weight:550; }
+    .tabs button:hover { background:rgba(255,255,255,.045);color:#eee8f8;box-shadow:none;transform:none; }
+    .tabs button[aria-current="page"] { border-color:rgba(170,136,255,.2);background:linear-gradient(100deg,rgba(170,136,255,.17),rgba(170,136,255,.06));color:#e5d8ff;box-shadow:inset 2px 0 var(--accent),0 0 20px rgba(170,136,255,.045); }
+    .privacy-status { margin-top:1rem;padding:.8rem;border:1px solid rgba(170,136,255,.12);border-radius:.8rem;background:rgba(13,12,17,.38); }
+    .privacy-status strong { display:block;margin-bottom:.35rem;color:#d1c1ee;font-size:.72rem; }
+    .privacy-status p { margin:0;color:var(--muted);font-size:.7rem;line-height:1.5; }
+    .viewport { min-height:620px;padding:clamp(1rem,2vw,1.5rem); }
     #content { font-size:.85rem; }
-    .grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.85rem; }
-    .card { padding:1.1rem;margin:0 0 .9rem;transition:border-color .18s ease,box-shadow .18s ease; } .card:hover { border-color:rgba(94,234,212,.2);box-shadow:0 10px 30px rgba(0,0,0,.22),0 0 20px rgba(45,212,191,.05),inset 0 1px rgba(255,255,255,.04); }
-    .settings-heading { display:flex;justify-content:space-between;align-items:flex-start;gap:1rem; }
-    .policy-note { border-left:3px solid #5eead4;padding:.8rem 1rem;background:linear-gradient(90deg,rgba(20,184,166,.1),rgba(20,184,166,0));color:#cbd5e1;line-height:1.6; }
-    .policy-card { border-color:rgba(56,189,248,.15); }
+    .page-heading { display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin:0 0 1.1rem; }
+    .page-heading h2 { margin:0 0 .35rem;font-size:clamp(1.35rem,2.6vw,1.8rem);letter-spacing:-.035em; }
+    .page-heading p { margin:0;color:var(--muted); }
+    .view-pill { display:inline-flex;align-items:center;gap:.35rem;border:1px solid var(--border);border-radius:.7rem;padding:.6rem .8rem;color:#d6d0df;background:rgba(255,255,255,.025);font-size:.75rem;white-space:nowrap; }
+    .overview-metrics { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin-bottom:.8rem; }
+    .overview-metric { min-height:132px;padding:1rem 1.1rem;display:flex;flex-direction:column;justify-content:space-between; }
+    .overview-metric strong { display:block;margin:.7rem 0;color:#f2eef8;font-size:clamp(1.4rem,2.5vw,2rem);letter-spacing:-.04em; }
+    .overview-metric p { margin:0;color:var(--muted);font-size:.74rem; }
+    .grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.8rem; }
+    .card { padding:1.05rem;margin:0 0 .85rem;transition:border-color .18s ease,box-shadow .18s ease; } .card:hover { border-color:rgba(170,136,255,.27);box-shadow:0 10px 28px rgba(0,0,0,.2),0 0 20px rgba(170,136,255,.045),inset 0 1px rgba(255,255,255,.035); }
+    .settings-heading,.section-heading { display:flex;justify-content:space-between;align-items:flex-start;gap:1rem; }
+    .section-heading { align-items:center;margin-bottom:.6rem; }
+    .section-heading h2 { margin:0; }
+    .section-heading span { color:var(--muted);font-size:.75rem; }
+    .policy-note { border-left:3px solid var(--accent);padding:.8rem 1rem;background:linear-gradient(90deg,rgba(170,136,255,.1),rgba(170,136,255,0));color:#d4ccdf;line-height:1.6; }
+    .policy-card { border-color:rgba(170,136,255,.17); }
     .inactive-panel { opacity:.62; }
     .inactive-panel input:disabled,.inactive-panel select:disabled,.inactive-panel button:disabled { cursor:not-allowed;opacity:.5; }
     .inactive-badge { display:inline-flex;align-items:center;border:1px solid rgba(248,113,113,.28);border-radius:999px;padding:.28rem .58rem;color:#fca5a5;background:rgba(127,29,29,.16);font-size:.65rem;font-weight:750;letter-spacing:.06em;text-transform:uppercase; }
+    .activity-chart-card { padding:1.2rem 1.3rem .9rem; }
+    .activity-chart { display:block;width:100%;height:auto;min-height:170px;overflow:visible; }
+    .activity-chart .chart-grid { stroke:rgba(205,190,229,.1);stroke-dasharray:4 8; }
+    .activity-chart .chart-fill { fill:url(#treasuryChartFill); }
+    .activity-chart .chart-line { fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px rgba(170,136,255,.32)); }
+    .chart-labels { display:flex;justify-content:space-between;gap:.5rem;color:#827b8e;font-size:.66rem; }
+    .chart-empty { min-height:170px;display:grid;place-items:center;color:var(--muted);text-align:center; }
+    .recent-list { display:grid; }
+    .recent-item { display:grid;grid-template-columns:2.7rem minmax(0,1fr) auto;align-items:center;gap:.8rem;padding:.8rem 0;border-bottom:1px solid rgba(255,255,255,.07); }
+    .recent-item:last-child { border-bottom:0; }
+    .recent-icon { display:grid;place-items:center;width:2.7rem;height:2.7rem;border-radius:.75rem;color:var(--accent);background:var(--accent-soft);font-size:1.1rem; }
+    .recent-title { color:#e9e3f1;font-weight:650; }
+    .recent-detail,.recent-amount small { display:block;margin-top:.2rem;color:var(--muted);font-size:.72rem; }
+    .recent-amount { text-align:right;color:#e9e3f1;font-weight:650;white-space:nowrap; }
     .row>* { flex:1; } .mono,code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere; }
-    code { color:#cbd5e1; } .danger { color:#fecaca; } .success-text { color:#86efac; }
+    code { color:#d8c9f4; } .danger { color:#fecaca; } .success-text { color:#c4b0ff; }
     .actions { display:flex;gap:.45rem;flex-wrap:wrap; } .actions button { padding:.5rem .7rem;font-size:.78rem; }
     .form-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.25rem .9rem; }
-    .table-wrap { overflow:auto;border-radius:.8rem; }
+    .table-wrap { overflow:auto;border-radius:.75rem; }
     table { width:100%;border-collapse:collapse;font-size:.79rem; }
     th,td { padding:.7rem .6rem;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;vertical-align:top; }
-    th { color:#cbd5e1;font-size:.7rem;letter-spacing:.04em; }
-    footer { color:#899198;font-size:.73rem; } .site-footer { padding-top:0;padding-bottom:1.5rem;line-height:1.6; }
+    th { color:#d2c6e6;font-size:.7rem;letter-spacing:.04em; }
+    footer { color:#8d8797;font-size:.73rem; } .site-footer { padding-top:0;padding-bottom:1.5rem;line-height:1.6; }
     @media (max-width:900px) {
       .hero { grid-template-columns:1fr; } .hero-stats { grid-template-columns:repeat(3,minmax(0,1fr)); }
-      .workspace-layout { grid-template-columns:1fr; } .tabs { flex-direction:row;overflow:auto;padding-bottom:.25rem; }
-      .tabs button { width:auto;white-space:nowrap; } .viewport { min-height:0; }
+      .workspace-layout { grid-template-columns:1fr; } .sidebar { position:static; }
+      .tabs { display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); }
+      .nav-group[open] .tabs { padding:.1rem .35rem .45rem; } .viewport { min-height:0; }
+      .overview-metric { min-height:120px; }
     }
     @media (max-width:620px) {
       .topbar { align-items:flex-start;padding-top:.8rem;padding-bottom:.8rem; }
       .header-actions { flex-direction:column;align-items:flex-end; } .hero-stats { grid-template-columns:1fr; }
-      .workspace-context { grid-template-columns:1fr; }
+      .workspace-context { grid-template-columns:1fr; } .workspace-layout { gap:.7rem; }
+      .nav-group[open] .tabs { grid-template-columns:1fr 1fr; }
+      .recent-item { grid-template-columns:2.4rem minmax(0,1fr) auto;gap:.55rem; }
+      .recent-icon { width:2.4rem;height:2.4rem; }
+      .overview-metrics { grid-template-columns:1fr; }
+      .overview-metric { min-height:100px; }
+      .page-heading { flex-direction:column; }
     }
   </style>
 </head>
@@ -99,8 +145,8 @@
   <header>
     <div class="topbar">
       <div>
-        <a class="brand" href="/">TermiNull v1.0</a>
-        <div class="brand-note">Company treasury · Lunul PoA</div>
+        <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">T</span><span class="brand-wordmark"><strong>TERMI<span class="brand-accent">NULL</span></strong><small>/ TREASURY</small></span></a>
+        <div class="brand-note">Enterprise financial suite · Lunul PoA</div>
       </div>
       <div class="header-actions">
         <span id="networkStatus" class="status-pill">Network not checked</span>
@@ -161,7 +207,7 @@
       </div>
       <div class="workspace-layout">
         <aside class="sidebar glass-panel">
-          <div class="sidebar-heading">Navigation hub</div>
+          <div class="sidebar-heading">Workspace</div>
           <nav id="tabs" class="tabs" aria-label="Workspace"></nav>
           <div class="privacy-status">
             <strong>Shielded pool · inactive</strong>
@@ -503,6 +549,15 @@
       privacy:'Privacy / ZK (inactive)',
       settings:'Company settings'
     };
+    const navGroups = [
+      { name:'Workspace', tabs:['overview','accounts'] },
+      { name:'People & partners', tabs:['employees','organogram','suppliers'] },
+      { name:'Operations', tabs:['invoices','projects','clients','activity'] },
+      { name:'Treasury', tabs:['accounting','escrow','dao'] },
+      { name:'Management', tabs:['profile','reports','settings','privacy'] },
+      { name:'Get started', tabs:['company','join','invoice'] }
+    ];
+    const expandedNavGroups = new Set();
 
     async function renderWorkspace() {
       if (!session || !context) return;
@@ -514,9 +569,23 @@
           : null;
         const tabs = tabsFor(context.type, org);
         if (!tabs.includes(activeTab)) activeTab = tabs[0];
-        document.getElementById('tabs').innerHTML = tabs.map(tab =>
-          `<button type="button" aria-current="${tab === activeTab ? 'page' : 'false'}" onclick="openTab('${tab}')">${tabLabels[tab]}</button>`
-        ).join('');
+        document.querySelectorAll('.nav-group').forEach(group => {
+          if (group.open) expandedNavGroups.add(group.dataset.group);
+          else expandedNavGroups.delete(group.dataset.group);
+        });
+        const activeGroup = navGroups.find(group => group.tabs.includes(activeTab));
+        if (activeGroup) expandedNavGroups.add(activeGroup.name);
+        document.getElementById('tabs').innerHTML = navGroups.map(group => {
+          const groupTabs = group.tabs.filter(tab => tabs.includes(tab));
+          if (!groupTabs.length) return '';
+          const open = expandedNavGroups.has(group.name);
+          return `<details class="nav-group" data-group="${escapeHtml(group.name)}"${open ? ' open' : ''}>
+            <summary>${escapeHtml(group.name)}</summary>
+            <div class="tabs">${groupTabs.map(tab =>
+              `<button type="button" aria-current="${tab === activeTab ? 'page' : 'false'}" onclick="openTab('${tab}')">${tabLabels[tab]}</button>`
+            ).join('')}</div>
+          </details>`;
+        }).join('');
         if (activeTab === 'privacy') return renderPrivacyWorkspace();
         if (context.type === 'new') return renderNewWallet();
         if (context.type === 'company') return await renderCompany(org);
@@ -739,6 +808,50 @@
       }
     }
 
+    function renderTreasuryChart(rows) {
+      const monthlyCounts = new Map();
+      for (const row of rows) {
+        const date = new Date(row.timestamp);
+        if (row.status !== 'CONFIRMED' || Number.isNaN(date.getTime())) continue;
+        const month = date.toISOString().slice(0, 7);
+        monthlyCounts.set(month, (monthlyCounts.get(month) || 0) + 1);
+      }
+      const months = [...monthlyCounts.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(-8);
+      if (!months.length) return '<div class="chart-empty">No confirmed transaction history to chart yet.</div>';
+
+      const left = 12;
+      const right = 788;
+      const top = 24;
+      const bottom = 194;
+      const maxCount = Math.max(...months.map(([, count]) => count));
+      const points = months.map(([month, count], index) => {
+        const x = months.length === 1 ? (left + right) / 2 : left + index * (right - left) / (months.length - 1);
+        const y = bottom - count / maxCount * (bottom - top);
+        const label = new Date(`${month}-01T00:00:00Z`).toLocaleDateString(undefined, { month:'short', year:'2-digit', timeZone:'UTC' });
+        return { x, y, label, count };
+      });
+      const line = points.map((point, index) => `${index ? 'L' : 'M'} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(' ');
+      const area = `${line} L ${points.at(-1).x.toFixed(1)} ${bottom} L ${points[0].x.toFixed(1)} ${bottom} Z`;
+      const description = points.map(point => `${point.label}: ${point.count}`).join(', ');
+      return `<svg class="activity-chart" viewBox="0 0 800 220" role="img" aria-label="Confirmed monthly transaction counts: ${escapeHtml(description)}">
+          <defs><linearGradient id="treasuryChartFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stop-color="#aa88ff" stop-opacity=".25"/><stop offset="100%" stop-color="#aa88ff" stop-opacity=".015"/></linearGradient></defs>
+          <path class="chart-grid" d="M 12 45 H 788 M 12 95 H 788 M 12 145 H 788 M 12 194 H 788" fill="none"/>
+          <path class="chart-fill" d="${area}"/><path class="chart-line" d="${line}"/>
+          ${points.map(point => `<circle cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="3.5" fill="#c4aaff"><title>${escapeHtml(point.label)}: ${point.count} confirmed transactions</title></circle>`).join('')}
+        </svg>
+        <div class="chart-labels">${points.map(point => `<span>${escapeHtml(point.label)}</span>`).join('')}</div>`;
+    }
+
+    function renderRecentActivity(rows) {
+      if (!rows.length) return '<p class="muted">No confirmed activity is available for this workspace yet.</p>';
+      return `<div class="recent-list">${rows.slice(0, 4).map(row =>
+        `<article class="recent-item"><span class="recent-icon" aria-hidden="true">↗</span>
+          <div><div class="recent-title">${escapeHtml(row.kind)}</div><div class="recent-detail">Confirmed · ${escapeHtml(row.timestamp)}</div></div>
+          <div class="recent-amount">${escapeHtml(displayAmount(row.amount_raw))} ${escapeHtml(row.asset)}<small>Confirmed</small></div>
+        </article>`
+      ).join('')}</div>`;
+    }
+
     async function renderCompany(org) {
       const serial = context.serial;
       const owner = org.roles.includes('owner');
@@ -757,19 +870,27 @@
       if (activeTab === 'overview') displayWalletBalance(balance);
       const content = document.getElementById('content');
       if (activeTab === 'overview') {
+        const pendingInvoices = canView('invoices')
+          ? invoices.filter(invoice => invoice.status === 'OPEN').length
+          : null;
         const invitationMarkup = (session.executiveInvitations || []).filter(invite => invite.serial === serial).map(invite =>
           `<section class="card"><h3>Executive access invitation</h3><p>${escapeHtml(invite.office)} · ${escapeHtml(invite.company_name)} · nominated wallet <code>${escapeHtml(wallet)}</code></p>
             <button onclick="acceptExecutiveInvitation('${escapeHtml(invite.serial)}',${invite.id})">Accept wallet-bound access</button></section>`
         ).join('');
         content.innerHTML = `
           ${invitationMarkup}
-          <div class="grid">
-            <article class="card"><div class="small muted">USDT in connected wallet</div><h2>${balance === null ? 'Unavailable' : `${escapeHtml(ethers.formatUnits(balance,18))} USDT`}</h2><p class="small muted">${balance === null ? 'The chain RPC or token contract is unavailable.' : 'On-chain wallet balance; not a company ledger balance.'}</p></article>
-            <article class="card"><div class="small muted">Company serial</div><h2 class="mono">${escapeHtml(org.serial)}</h2><p>${escapeHtml(org.name)}</p></article>
-            <article class="card"><div class="small muted">Confirmed company transactions</div><h2>${activity.length}</h2><p class="small muted">Only receipts confirmed by the configured RPC are included.</p></article>
+          <div class="page-heading"><div><h2>Treasury overview</h2><p>Your corporate financial workspace · ${escapeHtml(org.name)}</p></div><span class="view-pill">Overview⌄</span></div>
+          <div class="overview-metrics">
+            <article class="card overview-metric"><span class="small muted">Connected wallet balance</span><strong>${balance === null ? '— USDT' : `${escapeHtml(ethers.formatUnits(balance,18))} USDT`}</strong><p>${balance === null ? 'Connect to retrieve' : 'On-chain wallet balance'}</p></article>
+            <article class="card overview-metric"><span class="small muted">Confirmed transactions</span><strong>${activity.length}</strong><p>Confirmed activity</p></article>
+            <article class="card overview-metric"><span class="small muted">Pending invoices</span><strong>${pendingInvoices === null ? '—' : pendingInvoices}</strong><p>${pendingInvoices === null ? 'Invoice access not granted' : 'Awaiting review'}</p></article>
           </div>
-          <section class="card"><h2>Shielding status</h2><p class="danger">Unavailable: pool deposits and withdrawals are disabled because commitment recovery and enforced proof verification are not ready.</p><p class="small muted">Pool ${POOL_ADDRESS} · verifier ${VERIFIER_ADDRESS}</p></section>
-          <section class="card"><h2>Configured contracts</h2><p>DAO: ${org.dao_address ? `<code>${escapeHtml(org.dao_address)}</code>` : '<span class="muted">Not deployed</span>'}</p><p>Escrow: ${org.escrow_address ? `<code>${escapeHtml(org.escrow_address)}</code>` : '<span class="muted">Not deployed</span>'}</p></section>`;
+          <section class="card activity-chart-card"><div class="section-heading"><h2>Treasury activity</h2><span>Confirmed transactions · actual records</span></div>${renderTreasuryChart(activity)}</section>
+          <section class="card"><div class="section-heading"><h2>Recent activity</h2><span>Confirmed on-chain activity</span></div>${renderRecentActivity(activity)}</section>
+          <div class="grid">
+            <section class="card"><h2>Shielding status</h2><p class="danger">Inactive: pool deposits and withdrawals are disabled until the replacement contracts and proof interfaces are verified.</p><p class="small muted">Pool ${escapeHtml(POOL_ADDRESS || 'Not configured')} · verifier ${escapeHtml(VERIFIER_ADDRESS || 'Not configured')}</p></section>
+            <section class="card"><h2>Configured contracts</h2><p>DAO: ${org.dao_address ? `<code>${escapeHtml(org.dao_address)}</code>` : '<span class="muted">Not deployed</span>'}</p><p>Escrow: ${org.escrow_address ? `<code>${escapeHtml(org.escrow_address)}</code>` : '<span class="muted">Not deployed</span>'}</p></section>
+          </div>`;
       } else if (activeTab === 'accounts') {
         content.innerHTML = `<section class="card"><h2>Accounts & payments</h2>
           <p class="muted">The balance below is read from the connected wallet on Lunul PoA. Payments are direct USDT transfers and require an on-chain confirmation.</p>

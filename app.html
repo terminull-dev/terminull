@@ -121,14 +121,14 @@
           <div class="stat-detail">18 decimals · on-chain balance</div>
         </article>
         <article class="stat-card">
-          <div class="stat-label">Network</div>
-          <strong class="stat-value">Lunul · 448000</strong>
-          <div class="stat-detail">Wallet actions require this chain</div>
+          <div class="stat-label">Connected wallet LUN</div>
+          <strong id="lunBalanceDisplay" class="stat-value">Connect wallet to read balance</strong>
+          <div class="stat-detail">Native balance · Lunul PoA</div>
         </article>
         <article class="stat-card">
-          <div class="stat-label">Privacy pool</div>
-          <strong class="stat-value">Inactive</strong>
-          <div class="stat-detail">Shielding and unshielding are disabled</div>
+          <div class="stat-label">Company DAO treasury</div>
+          <strong id="daoBalanceDisplay" class="stat-value">No company selected</strong>
+          <div class="stat-detail">USDT balance · on-chain</div>
         </article>
       </div>
     </section>
@@ -155,7 +155,7 @@
           <nav id="tabs" class="tabs" aria-label="Workspace"></nav>
           <div class="privacy-status">
             <strong>Shielded pool · inactive</strong>
-            <p>Disabled until the redeployed pool, verifier, and matching proof interfaces are verified.</p>
+            <p>Shielding and unshielding are disabled until the redeployed pool, verifier, and matching proof interfaces are verified.</p>
           </div>
         </aside>
         <section id="content" class="viewport glass-panel"></section>
@@ -362,6 +362,8 @@
       signer = null;
       updateWorkspaceSummary();
       displayWalletBalance(null);
+      document.getElementById('lunBalanceDisplay').textContent = 'Unavailable';
+      document.getElementById('daoBalanceDisplay').textContent = 'Unavailable';
       document.getElementById('networkStatus').textContent = 'Network not checked';
       renderSignedOut();
       if (message) showNotice(message);
@@ -399,13 +401,14 @@
       activeTab = 'overview';
       updateWorkspaceSummary();
       await renderWorkspace();
-      refreshWalletBalance();
+      refreshHeroBalances();
     }
 
     async function selectContext(index) {
       context = document.getElementById('contextSelect')._contexts[Number(index)];
       activeTab = 'overview';
       updateWorkspaceSummary();
+      refreshHeroBalances();
       await renderWorkspace();
     }
 
@@ -525,12 +528,46 @@
         : `${ethers.formatUnits(balance, 18)} USDT`;
     }
 
-    async function refreshWalletBalance() {
-      if (!provider || !wallet) return displayWalletBalance(null);
-      try {
-        displayWalletBalance(await walletUsdtBalance());
-      } catch {
+    async function refreshHeroBalances() {
+      const selectedContext = context;
+      if (!provider || !wallet) {
         displayWalletBalance(null);
+        document.getElementById('lunBalanceDisplay').textContent = 'Unavailable';
+        document.getElementById('daoBalanceDisplay').textContent = 'Unavailable';
+        return;
+      }
+
+      const [usdt, lun] = await Promise.allSettled([
+        walletUsdtBalance(),
+        provider.getBalance(wallet)
+      ]);
+      if (context !== selectedContext) return;
+      displayWalletBalance(usdt.status === 'fulfilled' ? usdt.value : null);
+      document.getElementById('lunBalanceDisplay').textContent = lun.status === 'fulfilled'
+        ? `${ethers.formatEther(lun.value)} LUN`
+        : 'Unavailable';
+
+      if (!selectedContext?.serial) {
+        document.getElementById('daoBalanceDisplay').textContent = 'No company selected';
+        return;
+      }
+      try {
+        const org = await api(`/api/org/${encodeURIComponent(selectedContext.serial)}`);
+        if (context !== selectedContext) return;
+        if (!org.dao_address) {
+          document.getElementById('daoBalanceDisplay').textContent = 'Not deployed';
+          return;
+        }
+        const token = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, provider);
+        const [decimals, balance] = await Promise.all([
+          token.decimals(),
+          token.balanceOf(org.dao_address)
+        ]);
+        if (Number(decimals) !== 18) throw new Error('Configured USDT does not report 18 decimals.');
+        if (context !== selectedContext) return;
+        document.getElementById('daoBalanceDisplay').textContent = `${ethers.formatUnits(balance, 18)} USDT`;
+      } catch {
+        if (context === selectedContext) document.getElementById('daoBalanceDisplay').textContent = 'Unavailable';
       }
     }
 
@@ -672,6 +709,7 @@
           body:json({ txHash:receipt.hash, recipient, amount:amountText, memo })
         });
         showNotice(`Payment confirmed: ${receipt.hash}`, 'success');
+        refreshHeroBalances();
         await renderWorkspace();
       } catch (error) { showNotice(error.message, 'error'); }
     }
@@ -759,6 +797,7 @@
           });
         }
         showNotice(`Confirmed ${rows.length} USDT payments.`, 'success');
+        refreshHeroBalances();
         await renderWorkspace();
       } catch (error) { showNotice(error.message, 'error'); }
     }
@@ -929,6 +968,7 @@
         const contractAddress = await contract.getAddress();
         await api(`/api/org/${encodeURIComponent(context.serial)}/contracts/dao`, { method:'POST', body:json({ txHash:receipt.hash }) });
         showNotice(`DAO deployed at ${contractAddress}.`, 'success');
+        refreshHeroBalances();
         await renderWorkspace();
       } catch (error) { showNotice(error.message, 'error'); }
     }
@@ -1041,6 +1081,7 @@
           body:json({ txHash:receipt.hash, recipient:org.dao_address, amount:amountText, memo:'DAO treasury funding' })
         });
         showNotice('DAO treasury funded on-chain.', 'success');
+        refreshHeroBalances();
         await renderWorkspace();
       } catch (error) { showNotice(error.message, 'error'); }
     }
@@ -1057,7 +1098,7 @@
         VERIFIER_ADDRESS = ethers.getAddress(health.verifier);
         document.getElementById('usdtAddressDisplay').textContent = `${USDT_ADDRESS} · ${health.decimals} decimals`;
         document.getElementById('networkStatus').textContent = `Chain ${health.chainId} · USDT ${health.decimals}d`;
-        if (provider && wallet) refreshWalletBalance();
+        if (provider && wallet) refreshHeroBalances();
       } catch (error) {
         document.getElementById('networkStatus').textContent = 'Network unavailable';
         showNotice(`Chain configuration unavailable: ${error.message} Wallet sign-in is still available; on-chain actions need a working RPC.`, 'error');

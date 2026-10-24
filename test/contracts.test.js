@@ -92,4 +92,9 @@ test('workspace navigation exposes company tools and unlinked-wallet actions', (
   assert.match(script, /async function sendUsdtPayment\(\)/);
   assert.match(script, /activeTab === 'escrow'/);
   assert.match(script, /activeTab === 'reports'/);
+  assert.match(html, /id="lunBalanceDisplay"/);
+  assert.match(html, /id="daoBalanceDisplay"/);
+  assert.match(script, /provider\.getBalance\(wallet\)/);
+  assert.match(script, /token\.balanceOf\(org\.dao_address\)/);
+  assert.match(script, /ethers\.formatUnits\(balance, 18\)\} USDT/);
 });

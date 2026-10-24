@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terminull | Enterprise Private Banking & Shielded Settlement</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 300: '#c4ccd4', 400: '#aab4be', 500: '#87939e', 600: '#687681', 700: '#53606b' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(circle at 50% 0%, #25282a 0%, #1b1d1f 50%, #141617 100%);
+      background-attachment: fixed;
+    }
+    .glass-slate-panel {
+      background: rgba(29, 32, 34, 0.94);
+      backdrop-filter: blur(25px);
+      -webkit-backdrop-filter: blur(25px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.08);
+    }
+    .glass-slate-card {
+      background: rgba(42, 45, 47, 0.76);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .glass-slate-card:hover {
+      border-color: rgba(176, 185, 193, 0.22);
+      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.08);
+    }
+    header { background-color: rgba(24, 26, 28, 0.96) !important; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #141617; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #77838e; }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col justify-between selection:bg-purple-600 selection:text-white antialiased overflow-x-hidden">
+
+  <!-- TOP HEADER / MARKETING NAV -->
+  <header class="border-b border-white/10 bg-slate-950/85 backdrop-blur-2xl sticky top-0 z-40 shadow-xl">
+    <div class="max-w-[1400px] mx-auto px-4 sm:px-8 h-20 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-purple-600 flex items-center justify-center shadow-lg shadow-purple-900/30 font-extrabold text-white">T</div>
+        <span class="font-extrabold tracking-tight text-white text-xl">TermiNull</span>
+      </div>
+
+      <nav class="hidden md:flex items-center space-x-8 font-mono text-xs text-slate-300">
+        <a href="#products" class="hover:text-white transition">Products</a>
+        <a href="#features" class="hover:text-white transition">Core Features</a>
+        <a href="#usecases" class="hover:text-white transition">Use Cases</a>
+        <a href="#security" class="hover:text-white transition">Architecture</a>
+        <a href="#compliance" class="hover:text-white transition">Compliance</a>
+      </nav>
+
+      <div class="flex items-center space-x-4">
+        <a href="app.html" class="bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white font-mono text-xs py-2.5 px-4 rounded-xl border border-white/10 transition">
+          Sign In
+        </a>
+        <a href="app.html" class="bg-gradient-to-r from-brand-600 via-purple-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-mono text-xs font-bold py-2.5 px-5 rounded-xl shadow-xl border border-white/20 transition flex items-center space-x-2">
+          <span>Launch App</span>
+          <span>→</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN LANDING CONTAINER -->
+  <main class="max-w-[1400px] mx-auto px-4 sm:px-8 py-12 md:py-20 flex-1 w-full space-y-28">
+
+    <!-- HERO SECTION -->
+    <div class="relative overflow-hidden rounded-3xl glass-slate-panel p-8 sm:p-16 shadow-2xl text-center md:text-left flex flex-col md:flex-row items-center justify-between gap-12">
+      <!-- Background Glow FX -->
+      <div class="absolute -top-32 -right-32 w-[500px] h-[500px] bg-brand-600/15 rounded-full blur-3xl pointer-events-none"></div>
+      <div class="absolute -bottom-32 -left-32 w-[500px] h-[500px] bg-purple-600/15 rounded-full blur-3xl pointer-events-none"></div>
+
+      <div class="space-y-6 max-w-2xl relative z-10">
+        <div class="inline-flex items-center space-x-2 font-mono text-[11px] font-bold text-brand-300 uppercase tracking-widest bg-brand-500/20 border border-brand-500/40 px-3.5 py-1.5 rounded-full">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Enterprise Private Banking & Settlement Protocol</span>
+        </div>
+
+        <h1 class="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-tight">
+          Shielded Treasury & <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-300 via-purple-400 to-indigo-300">Autonomous Payroll</span>
+        </h1>
+
+        <p class="text-sm sm:text-base text-slate-300 leading-relaxed font-sans">
+          Engineered for global web3 enterprises, private banking syndicates, and decentralized organizations. Manage multi-currency treasury reserves, shielded batch payroll, escrow milestones, and automated tax reporting on NullNet.
+        </p>
+
+        <div class="flex flex-col sm:flex-row items-center gap-4 pt-4">
+          <a href="app.html" class="w-full sm:w-auto bg-gradient-to-r from-brand-600 via-purple-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-mono text-xs font-bold py-3.5 px-8 rounded-2xl shadow-2xl border border-white/20 transition text-center">
+            Launch Terminull Terminal →
+          </a>
+          <a href="#products" class="w-full sm:w-auto bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white font-mono text-xs py-3.5 px-6 rounded-2xl border border-white/10 transition text-center">
+            View Product Suite
+          </a>
+        </div>
+      </div>
+
+      <!-- HERO STATS / PREVIEW CARD -->
+      <div class="w-full md:w-auto shrink-0 relative z-10">
+        <div class="glass-slate-card rounded-3xl p-6 sm:p-8 space-y-6 border border-white/10 w-full md:w-96 shadow-2xl">
+          <div class="flex items-center justify-between border-b border-white/10 pb-4">
+            <span class="font-mono text-xs text-slate-400 uppercase tracking-widest">Network Status</span>
+            <span class="font-mono text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/30">NullNet Active</span>
+          </div>
+
+          <div class="space-y-4 font-mono text-xs">
+            <div class="flex justify-between items-center bg-slate-950/60 p-3.5 rounded-2xl border border-white/5">
+              <span class="text-slate-400">Supported Currencies</span>
+              <span class="text-white font-bold">USDC, USDT, LUN</span>
+            </div>
+            <div class="flex justify-between items-center bg-slate-950/60 p-3.5 rounded-2xl border border-white/5">
+              <span class="text-slate-400">Escrow Security</span>
+              <span class="text-purple-300 font-bold">Timelock & Multi-Sig</span>
+            </div>
+            <div class="flex justify-between items-center bg-slate-950/60 p-3.5 rounded-2xl border border-white/5">
+              <span class="text-slate-400">Compliance Engines</span>
+              <span class="text-emerald-300 font-bold">TRM & Chainalysis</span>
+            </div>
+          </div>
+
+          <div class="text-[11px] text-slate-400 font-sans text-center pt-2 border-t border-white/5">
+            Secured via Ed25519 signatures and AES-GCM payloads.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRODUCT SUITE SECTION -->
+    <div id="products" class="space-y-12">
+      <div class="text-center max-w-3xl mx-auto space-y-3">
+        <span class="font-mono text-xs text-purple-400 uppercase tracking-widest bg-purple-500/10 border border-purple-500/30 px-3 py-1 rounded-full">Product Ecosystem</span>
+        <h2 class="text-3xl font-extrabold text-white tracking-tight">Complete Private Banking Infrastructure</h2>
+        <p class="text-sm text-slate-300">Four integrated platforms built to handle every layer of corporate crypto finance.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 font-mono text-xs">
+        <!-- PRODUCT 1 -->
+        <div class="glass-slate-card rounded-3xl p-8 space-y-6 border border-white/10 relative overflow-hidden">
+          <div class="flex items-center justify-between">
+            <div class="w-12 h-12 rounded-2xl bg-brand-500/20 border border-brand-500/30 flex items-center justify-center text-xl text-brand-300">🏦</div>
+            <span class="text-[10px] text-slate-400 bg-slate-900 border border-white/10 px-3 py-1 rounded-full">Module 01</span>
+          </div>
+          <div class="space-y-2">
+            <h3 class="text-xl font-bold text-white font-sans">Multi-Currency Accounts & Ledgers</h3>
+            <p class="text-xs text-slate-300 font-sans leading-relaxed">
+              Consolidated corporate asset views across USDC, USDT, and native LUN tokens. Provides full transaction historical ledgers, real-time balance tracking, and instant internal ledger settlements.
+            </p>
+          </div>
+          <ul class="space-y-2 text-slate-400 border-t border-white/5 pt-4">
+            <li class="flex items-center space-x-2"><span class="text-brand-300">✓</span><span>Dual USDC / USDT reserve vault tracking</span></li>
+            <li class="flex items-center space-x-2"><span class="text-brand-300">✓</span><span>Automated transaction categorization</span></li>
+            <li class="flex items-center space-x-2"><span class="text-brand-300">✓</span><span>SQLite local ledger persistence</span></li>
+          </ul>
+        </div>
+
+        <!-- PRODUCT 2 -->
+        <div class="glass-slate-card rounded-3xl p-8 space-y-6 border border-white/10 relative overflow-hidden">
+          <div class="flex items-center justify-between">
+            <div class="w-12 h-12 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-xl text-purple-300">💸</div>
+            <span class="text-[10px] text-slate-400 bg-slate-900 border border-white/10 px-3 py-1 rounded-full">Module 02</span>
+          </div>
+          <div class="space-y-2">
+            <h3 class="text-xl font-bold text-white font-sans">Shielded Bulk Payroll Engine</h3>
+            <p class="text-xs text-slate-300 font-sans leading-relaxed">
+              Execute multi-recipient salary disbursements in a single transaction. Manage employee rosters, roles, monthly rates, tax withholding, and localized statutory compliance.
+            </p>
+          </div>
+          <ul class="space-y-2 text-slate-400 border-t border-white/5 pt-4">
+            <li class="flex items-center space-x-2"><span class="text-purple-300">✓</span><span>Single-click multi-recipient batch payouts</span></li>
+            <li class="flex items-center space-x-2"><span class="text-purple-300">✓</span><span>Jurisdiction-aware tax withholding calculators</span></li>
+            <li class="flex items-center space-x-2"><span class="text-purple-300">✓</span><span>Automated salary receipt generation</span></li>
+          </ul>
+        </div>
+
+        <!-- PRODUCT 3 -->
+        <div class="glass-slate-card rounded-3xl p-8 space-y-6 border border-white/10 relative overflow-hidden">
+          <div class="flex items-center justify-between">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-xl text-emerald-300">🔒</div>
+            <span class="text-[10px] text-slate-400 bg-slate-900 border border-white/10 px-3 py-1 rounded-full">Module 03</span>
+          </div>
+          <div class="space-y-2">
+            <h3 class="text-xl font-bold text-white font-sans">Escrow & Vendor Vaults</h3>
+            <p class="text-xs text-slate-300 font-sans leading-relaxed">
+              Lock contract funds into multi-signature or timelocked escrow vaults for supplier procurement, M&A payments, and contractor milestone payouts with programmatic release controls.
+            </p>
+          </div>
+          <ul class="space-y-2 text-slate-400 border-t border-white/5 pt-4">
+            <li class="flex items-center space-x-2"><span class="text-emerald-300">✓</span><span>Milestone-based fund release triggers</span></li>
+            <li class="flex items-center space-x-2"><span class="text-emerald-300">✓</span><span>Supplier & Vendor directory management</span></li>
+            <li class="flex items-center space-x-2"><span class="text-emerald-300">✓</span><span>Dispute resolution & arbiter multi-sig</span></li>
+          </ul>
+        </div>
+
+        <!-- PRODUCT 4 -->
+        <div class="glass-slate-card rounded-3xl p-8 space-y-6 border border-white/10 relative overflow-hidden">
+          <div class="flex items-center justify-between">
+            <div class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-xl text-amber-300">🏛️</div>
+            <span class="text-[10px] text-slate-400 bg-slate-900 border border-white/10 px-3 py-1 rounded-full">Module 04</span>
+          </div>
+          <div class="space-y-2">
+            <h3 class="text-xl font-bold text-white font-sans">DAO Governance & Bolt-Ons</h3>
+            <p class="text-xs text-slate-300 font-sans leading-relaxed">
+              Extend your treasury terminal with custom governance bolt-ons: automated yield sweepers, compliance screening proxies, spending limits, and multi-sig voting modules.
+            </p>
+          </div>
+          <ul class="space-y-2 text-slate-400 border-t border-white/5 pt-4">
+            <li class="flex items-center space-x-2"><span class="text-amber-300">✓</span><span>Modular bolt-on system architecture</span></li>
+            <li class="flex items-center space-x-2"><span class="text-amber-300">✓</span><span>On-chain governance proposal execution</span></li>
+            <li class="flex items-center space-x-2"><span class="text-amber-300">✓</span><span>Role-based access control (RBAC)</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- CORE FEATURES GRID SECTION -->
+    <div id="features" class="space-y-12">
+      <div class="text-center max-w-3xl mx-auto space-y-3">
+        <span class="font-mono text-xs text-brand-300 uppercase tracking-widest bg-brand-500/20 border border-brand-500/40 px-3 py-1 rounded-full">Technical Excellence</span>
+        <h2 class="text-3xl font-extrabold text-white tracking-tight">Enterprise Features Built for Scale</h2>
+        <p class="text-sm text-slate-300">Key platform capabilities designed for institutional financial operators.</p>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 font-mono text-xs">
+        <div class="glass-slate-card rounded-2xl p-6 space-y-3 border border-white/10">
+          <div class="text-brand-300 font-bold text-base">01. SIWE Authentication</div>
+          <p class="text-slate-300 font-sans text-xs leading-relaxed">
+            Sign-In with Ethereum (SIWE) protocols supporting MetaMask, Phantom, and Solflare wallets for passwordless cryptographic session control.
+          </p>
+        </div>
+
+        <div class="glass-slate-card rounded-2xl p-6 space-y-3 border border-white/10">
+          <div class="text-purple-300 font-bold text-base">02. Jurisdictional Routing</div>
+          <p class="text-slate-300 font-sans text-xs leading-relaxed">
+            Configure entity legal profiles across Zug (Switzerland), Delaware (USA), Frankfurt (Germany), Singapore, and Cayman Islands jurisdictions.
+          </p>
+        </div>
+
+        <div class="glass-slate-card rounded-2xl p-6 space-y-3 border border-white/10">
+          <div class="text-emerald-300 font-bold text-base">03. Automated Tax Auditing</div>
+          <p class="text-slate-300 font-sans text-xs leading-relaxed">
+            Track statutory VAT/MwSt liabilities, calculate withholding taxes, and generate downloadable CPA audit trail reports.
+          </p>
+        </div>
+
+        <div class="glass-slate-card rounded-2xl p-6 space-y-3 border border-white/10">
+          <div class="text-amber-300 font-bold text-base">04. Real-Time Analytics</div>
+          <p class="text-slate-300 font-sans text-xs leading-relaxed">
+            Dual-layer SVG charts plot historical monthly burn rates, runway forecasts, and total consolidated escrow reserve flucutations.
+          </p>
+        </div>
+
+        <div class="glass-slate-card rounded-2xl p-6 space-y-3 border border-white/10">
+          <div class="text-indigo-300 font-bold text-base">05. Encrypted Storage</div>
+          <p class="text-slate-300 font-sans text-xs leading-relaxed">
+            Local SQLite database engine securely stores employee rosters, vendor tables, entity credentials, and organizational serial keys.
+          </p>
+        </div>
+
+        <div class="glass-slate-card rounded-2xl p-6 space-y-3 border border-white/10">
+          <div class="text-rose-300 font-bold text-base">06. Private Chain Support</div>
+          <p class="text-slate-300 font-sans text-xs leading-relaxed">
+            Native deployment support for Go-Ethereum Clique PoA network 448000 with 1-second block times and custom reverse proxy routing.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- USE CASE SCENARIOS SECTION -->
+    <div id="usecases" class="space-y-12">
+      <div class="text-center max-w-3xl mx-auto space-y-3">
+        <span class="font-mono text-xs text-emerald-400 uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full">Real-World Deployments</span>
+        <h2 class="text-3xl font-extrabold text-white tracking-tight">Case Scenarios & Workflows</h2>
+        <p class="text-sm text-slate-300">How leading web3 organizations utilize Terminull for daily financial operations.</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 font-mono text-xs">
+        <!-- CASE 1 -->
+        <div class="glass-slate-card rounded-3xl p-8 space-y-4 border border-white/10 relative flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="text-emerald-400 font-bold uppercase tracking-wider text-[10px] bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full w-max">
+              Scenario A • Global Web3 Foundation
+            </div>
+            <h3 class="text-lg font-bold text-white font-sans">Automated Monthly Contributor Payroll</h3>
+            <p class="text-xs text-slate-300 font-sans leading-relaxed">
+              A Zug-based foundation manages 45 remote core developers across 12 countries. Using Terminull's Payroll Engine, the CFO uploads the monthly roster, verifies localized withholding tax rates, and executes a $320,000 USDC batch payout in under 10 seconds.
+            </p>
+          </div>
+          <div class="p-4 bg-slate-950/60 rounded-2xl border border-white/5 space-y-1 font-sans text-[11px]">
+            <span class="text-white font-bold">Key Outcome:</span>
+            <span class="text-slate-300 block">95% reduction in gas overhead and 4 hours saved per payroll run compared to manual wallet transfers.</span>
+          </div>
+        </div>
+
+        <!-- CASE 2 -->
+        <div class="glass-slate-card rounded-3xl p-8 space-y-4 border border-white/10 relative flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="text-purple-400 font-bold uppercase tracking-wider text-[10px] bg-purple-500/10 border border-purple-500/30 px-3 py-1 rounded-full w-max">
+              Scenario B • Protocol Security Firm
+            </div>
+            <h3 class="text-lg font-bold text-white font-sans">Escrow Vaults for Smart Contract Audits</h3>
+            <p class="text-xs text-slate-300 font-sans leading-relaxed">
+              A security firm conducts a $150,000 USDT audit for a new DeFi protocol. The client deposits funds into a Terminull Escrow Vault. 50% is released automatically upon preliminary report delivery, and the remaining 50% releases upon final remediation verification.
+            </p>
+          </div>
+          <div class="p-4 bg-slate-950/60 rounded-2xl border border-white/5 space-y-1 font-sans text-[11px]">
+            <span class="text-white font-bold">Key Outcome:</span>
+            <span class="text-slate-300 block">Eliminated counterparty payment default risks using programmatic milestone timelocks.</span>
+          </div>
+        </div>
+
+        <!-- CASE 3 -->
+        <div class="glass-slate-card rounded-3xl p-8 space-y-4 border border-white/10 relative flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="text-brand-300 font-bold uppercase tracking-wider text-[10px] bg-brand-500/20 border border-brand-500/40 px-3 py-1 rounded-full w-max">
+              Scenario C • Investment Syndicate
+            </div>
+            <h3 class="text-lg font-bold text-white font-sans">Compliant Cross-Border Entity Disbursement</h3>
+            <p class="text-xs text-slate-300 font-sans leading-relaxed">
+              An institutional private investment group routes capital through a Cayman Islands entity to US vendors. Terminull runs real-time TRM Labs address screening before approving disbursements, generating clean accounting logs for external CPAs.
+            </p>
+          </div>
+          <div class="p-4 bg-slate-950/60 rounded-2xl border border-white/5 space-y-1 font-sans text-[11px]">
+            <span class="text-white font-bold">Key Outcome:</span>
+            <span class="text-slate-300 block">100% compliance record during annual institutional financial audit sweeps.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TECHNICAL ARCHITECTURE & COMPLIANCE SECTION -->
+    <div id="security" class="glass-slate-panel rounded-3xl p-8 sm:p-12 space-y-8 border border-white/10 shadow-2xl">
+      <div id="compliance" class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 border-b border-white/10 pb-6">
+        <div>
+          <span class="font-mono text-xs text-emerald-400 uppercase tracking-widest bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full">Infrastructure & Compliance</span>
+          <h2 class="text-2xl font-extrabold text-white tracking-tight mt-3">NullNet & Go-Ethereum PoA Backbone</h2>
+          <p class="text-xs sm:text-sm text-slate-300 font-sans mt-1">
+            Deployed on dedicated Linux infrastructure managed via PM2 process managers and Nginx reverse proxies.
+          </p>
+        </div>
+        <a href="app.html" class="bg-slate-900 hover:bg-slate-800 text-white font-mono text-xs py-3 px-6 rounded-xl border border-white/10 transition">
+          Access Terminal Dashboard →
+        </a>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 font-mono text-xs">
+        <div class="p-5 bg-slate-950/60 rounded-2xl border border-white/5 space-y-2">
+          <div class="text-slate-400 text-[10px] uppercase">Consensus Engine</div>
+          <div class="text-white font-bold text-sm">Geth 1.13 Clique PoA</div>
+          <div class="text-slate-400 text-[11px] font-sans">1-second block sealing times on network 448000.</div>
+        </div>
+        <div class="p-5 bg-slate-950/60 rounded-2xl border border-white/5 space-y-2">
+          <div class="text-slate-400 text-[10px] uppercase">Payload Security</div>
+          <div class="text-purple-300 font-bold text-sm">AES-GCM & Ed25519</div>
+          <div class="text-slate-400 text-[11px] font-sans">End-to-end encrypted transaction blocks and signatures.</div>
+        </div>
+        <div class="p-5 bg-slate-950/60 rounded-2xl border border-white/5 space-y-2">
+          <div class="text-slate-400 text-[10px] uppercase">Database Engine</div>
+          <div class="text-emerald-300 font-bold text-sm">SQLite Synchronized</div>
+          <div class="text-slate-400 text-[11px] font-sans">Zero-latency local ledger persistence and roster state.</div>
+        </div>
+        <div class="p-5 bg-slate-950/60 rounded-2xl border border-white/5 space-y-2">
+          <div class="text-slate-400 text-[10px] uppercase">AML Screening</div>
+          <div class="text-brand-300 font-bold text-sm">TRM & Chainalysis</div>
+          <div class="text-slate-400 text-[11px] font-sans">Sanctions Oracle screening for every wallet recipient.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CALL TO ACTION BANNER -->
+    <div class="relative overflow-hidden rounded-3xl glass-slate-panel p-8 sm:p-12 text-center space-y-6 border border-brand-500/30 shadow-2xl">
+      <div class="absolute inset-0 bg-gradient-to-r from-brand-600/10 via-purple-600/10 to-indigo-600/10 pointer-events-none"></div>
+
+      <div class="relative z-10 max-w-2xl mx-auto space-y-4">
+        <h2 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Ready to Modernize Your Corporate Treasury?</h2>
+        <p class="text-xs sm:text-sm text-slate-300 font-sans leading-relaxed">
+          Connect your Web3 wallet to launch the terminal and start managing shielded payroll, supplier escrows, and multi-currency reserves today.
+        </p>
+        <div class="pt-4 flex justify-center">
+          <a href="app.html" class="bg-gradient-to-r from-brand-600 via-purple-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-mono text-xs font-bold py-4 px-10 rounded-2xl shadow-2xl border border-white/20 transition">
+            Launch Terminull App →
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-white/10 bg-slate-950/90 py-8 text-xs text-slate-400 font-mono">
+    <div class="max-w-[1400px] mx-auto px-4 sm:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div>Terminull Enterprise Private Banking Suite • Hosted securely on <strong class="text-white">lunul.org</strong></div>
+      <div class="flex items-center space-x-6 text-[11px]">
+        <a href="app.html" class="hover:text-white transition">Terminal Dashboard</a>
+        <a href="#products" class="hover:text-white transition">Products</a>
+        <a href="#features" class="hover:text-white transition">Features</a>
+        <a href="#usecases" class="hover:text-white transition">Use Cases</a>
+        <a href="#security" class="hover:text-white transition">Compliance</a>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>

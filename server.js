@@ -10,8 +10,19 @@ const db = new sqlite3.Database(path.join(__dirname, 'terminull.db'));
 
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+
+// 1. Root route serves the marketing landing page
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+
+// 2. Application dashboard route serves the renamed backend UI
+app.get('/app', (_req, res) => res.sendFile(path.join(__dirname, 'app.html')));
+
+// 3. Alternative dashboard route alias
+app.get('/dashboard', (_req, res) => res.sendFile(path.join(__dirname, 'app.html')));
+
 app.use('/public', express.static(path.join(__dirname, 'public')));
+// Also serve static files from root so app.html can load relative assets if needed
+app.use(express.static(path.join(__dirname)));
 
 const run = (sql, params = []) => new Promise((resolve, reject) => {
   db.run(sql, params, function (err) {

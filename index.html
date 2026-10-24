@@ -1,91 +1,1025 @@
+
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#141617">
-  <title>TermiNull | Company Treasury</title>
+  <meta name="theme-color" content="#101014">
+  <meta name="description" content="TermiNull is a corporate treasury and financial operations suite for managing company finances, payments, payroll, suppliers, projects and on-chain accounting.">
+  <title>TermiNull — Enterprise Treasury & Financial Operations</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
   <style>
-    :root { color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#141617;color:#f1f5f9; }
-    * { box-sizing:border-box; }
-    body { margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0,#25282a 0,#1b1d1f 50%,#141617 100%); }
-    header { border-bottom:1px solid rgba(255,255,255,.09);background:rgba(24,26,28,.94); }
-    .topbar,main,footer { width:min(1500px,100%);margin:0 auto;padding-left:clamp(1rem,4vw,3rem);padding-right:clamp(1rem,4vw,3rem); }
-    .topbar { min-height:68px;display:flex;align-items:center;justify-content:space-between;gap:1rem; }
-    .brand { color:#fff;text-decoration:none;font-size:1.15rem;font-weight:800;letter-spacing:-.03em; }
-    .subbrand,.muted { color:#9ca3af; }
-    .subbrand { margin-top:.2rem;font-size:.78rem; }
-    .network { border:1px solid rgba(170,180,190,.22);border-radius:999px;padding:.4rem .75rem;color:#cbd5e1;background:rgba(84,96,107,.15);font-size:.72rem; }
-    main { padding-top:2.5rem;padding-bottom:2.5rem; }
-    .hero { position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.8fr);gap:2.5rem;padding:clamp(1.4rem,4vw,3rem);border:1px solid rgba(255,255,255,.08);border-radius:1.6rem;background:rgba(29,32,34,.94);box-shadow:0 25px 60px rgba(0,0,0,.4),inset 0 1px 1px rgba(255,255,255,.07); }
-    .hero::before,.hero::after { content:"";position:absolute;width:20rem;height:20rem;border-radius:50%;filter:blur(80px);opacity:.12;pointer-events:none; }
-    .hero::before { top:-13rem;right:-5rem;background:#aab4be; } .hero::after { bottom:-15rem;left:15%;background:#68806f; }
-    .hero-copy,.hero-aside { position:relative;z-index:1; }
-    .eyebrow { display:inline-block;margin-bottom:1rem;border:1px solid rgba(170,180,190,.22);border-radius:999px;padding:.4rem .7rem;color:#cbd5e1;background:rgba(84,96,107,.15);font-size:.65rem;font-weight:750;letter-spacing:.11em;text-transform:uppercase; }
-    h1 { max-width:800px;margin:0 0 1rem;font-size:clamp(2.2rem,6vw,4.5rem);line-height:1.03;letter-spacing:-.055em; }
-    .hero-copy p { max-width:760px;color:#b8c0c7;font-size:1rem;line-height:1.75; }
-    .actions { display:flex;flex-wrap:wrap;gap:.7rem;margin-top:1.6rem; }
-    .button { display:inline-flex;align-items:center;justify-content:center;min-height:46px;border:1px solid rgba(255,255,255,.17);border-radius:.8rem;padding:.7rem 1rem;color:#f8fafc;background:linear-gradient(110deg,#52616c,#443f52);font-weight:700;text-decoration:none;transition:filter .15s ease,transform .15s ease; }
-    .button:hover { filter:brightness(1.15);transform:translateY(-1px); }
-    .button.secondary { background:rgba(15,17,18,.5);color:#d6dce1; }
-    .hero-aside { display:grid;gap:.8rem;align-content:center; }
-    .status-card,.feature { border:1px solid rgba(255,255,255,.07);border-radius:1rem;background:rgba(42,45,47,.76);box-shadow:0 10px 30px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.04); }
-    .status-card { padding:1.1rem; }
-    .status-card span { display:block;color:#9ca3af;font-size:.67rem;letter-spacing:.1em;text-transform:uppercase; }
-    .status-card strong { display:block;margin:.45rem 0;color:#e4e9ed;font-size:1.15rem; }
-    .status-card p { margin:0;color:#9ca3af;font-size:.78rem;line-height:1.55; }
-    .features { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.9rem;margin-top:1rem; }
-    .feature { padding:1.15rem; }
-    .feature h2 { margin:0 0 .5rem;font-size:.95rem; }
-    .feature p { margin:0;color:#9ca3af;font-size:.79rem;line-height:1.6; }
-    footer { padding-top:0;padding-bottom:1.5rem;color:#899198;font-size:.73rem;line-height:1.6; }
-    @media (max-width:900px) { .hero { grid-template-columns:1fr; }.features { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-    @media (max-width:560px) { .topbar { align-items:flex-start;padding-top:.8rem;padding-bottom:.8rem; }.network { font-size:.65rem; }.features { grid-template-columns:1fr; } }
+    :root {
+      color-scheme: dark;
+      --bg: #101014;
+      --panel: #17171e;
+      --panel2: #1d1c25;
+      --line: rgba(255,255,255,.085);
+      --text: #f5f3f9;
+      --muted: #9996a8;
+      --purple: #a58aff;
+      --purple2: #7654dc;
+      --gold: #d7bb85;
+      --mint: #82d8ba;
+      --width: 1380px;
+      font-family: "DM Sans", sans-serif;
+      scroll-behavior: smooth;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(ellipse at 50% -15%, rgba(117,83,207,.16), transparent 43%),
+        var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    button, a { -webkit-tap-highlight-color: transparent; }
+    button { font: inherit; }
+    .container {
+      width: min(var(--width), 100%);
+      margin: auto;
+      padding-inline: clamp(20px, 5vw, 72px);
+    }
+
+    /* Navigation */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(16,16,20,.86);
+      backdrop-filter: blur(22px);
+      border-bottom: 1px solid var(--line);
+    }
+    .nav {
+      min-height: 76px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 25px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .brand-mark {
+      width: 39px;
+      height: 39px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(165,138,255,.35);
+      border-radius: 12px;
+      color: #d5c7ff;
+      background: linear-gradient(145deg,#302344,#17151f);
+      font-family: Manrope,sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+    }
+    .brand-name {
+      font: 800 19px Manrope,sans-serif;
+      letter-spacing: -.8px;
+    }
+    .brand-name span { color: var(--purple); }
+    .brand-caption {
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: 1.35px;
+      text-transform: uppercase;
+      margin-top: 3px;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 29px;
+      color: #b9b5c5;
+      font-size: 13px;
+    }
+    .nav-links a:hover { color: white; }
+    .nav-actions { display: flex; gap: 10px; align-items: center; }
+    .btn {
+      min-height: 43px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 0 18px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #1b1a23;
+      color: #f8f6ff;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform .2s, border-color .2s, background .2s;
+    }
+    .btn:hover { transform: translateY(-2px); border-color: #8170b4; }
+    .btn-primary {
+      background: linear-gradient(115deg,#a58aff,#7958df);
+      border-color: transparent;
+      color: #17111f;
+      box-shadow: 0 7px 25px rgba(126,88,220,.19);
+    }
+    .btn-primary:hover { background: linear-gradient(115deg,#bba8ff,#9476f0); }
+    .menu-toggle { display: none; }
+
+    /* Hero */
+    .hero {
+      padding-top: 94px;
+      padding-bottom: 75px;
+      display: grid;
+      grid-template-columns: 1fr 1.04fr;
+      align-items: center;
+      gap: 55px;
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      border: 1px solid rgba(165,138,255,.22);
+      border-radius: 100px;
+      padding: 9px 13px;
+      color: #c8b9ff;
+      background: rgba(112,82,174,.09);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+    }
+    .pulse {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--mint);
+      box-shadow: 0 0 12px rgba(130,216,186,.6);
+    }
+    h1,h2,h3,p { margin-top: 0; }
+    h1 {
+      font: 700 clamp(42px,5.1vw,72px)/1.07 Manrope,sans-serif;
+      letter-spacing: -3.5px;
+      margin: 25px 0;
+    }
+    h1 em {
+      color: var(--purple);
+      font-style: normal;
+      background: linear-gradient(100deg,#c8b8ff,#8b6bf0 70%,#d9c7ff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-copy > p {
+      max-width: 540px;
+      color: #aaa6b7;
+      font-size: 15px;
+      line-height: 1.9;
+    }
+    .hero-buttons { display: flex; flex-wrap: wrap; gap: 12px; margin: 28px 0 27px; }
+    .hero-buttons .btn { min-height: 51px; padding-inline: 21px; }
+    .trust-line {
+      display: flex; align-items: center; gap: 10px;
+      color: #878394; font-size: 11px; line-height: 1.7;
+    }
+    .trust-icon { color: var(--gold); font-size: 16px; }
+
+    /* Product preview */
+    .preview-wrap { position: relative; min-width: 0; }
+    .glow {
+      position: absolute;
+      inset: 5% -8%;
+      background: rgba(115,78,209,.15);
+      filter: blur(65px);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .dashboard {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(191,174,255,.19);
+      border-radius: 17px;
+      background: #14141b;
+      box-shadow: 0 35px 100px rgba(0,0,0,.42),0 0 50px rgba(117,83,207,.07);
+      transform: perspective(1200px) rotateY(-2deg);
+    }
+    .dash-top {
+      min-height: 53px;
+      padding: 0 17px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--line);
+      background: #191820;
+      gap: 10px;
+    }
+    .dash-label { font-size: 11px; font-weight: 700; }
+    .dash-label span { color: var(--purple); }
+    .demo-label {
+      font-size: 9px;
+      color: #c2b4fa;
+      border: 1px solid rgba(165,138,255,.2);
+      padding: 5px 7px;
+      border-radius: 5px;
+    }
+    .dash-body { display: grid; grid-template-columns: 135px minmax(0,1fr); min-height: 400px; }
+    .dash-side {
+      padding: 18px 10px;
+      border-right: 1px solid var(--line);
+      background: #17161e;
+    }
+    .side-caption {
+      padding: 0 8px;
+      color: #706c7e;
+      font-size: 8px;
+      letter-spacing: 1.4px;
+      margin: 4px 0 12px;
+    }
+    .side-link {
+      display: flex; align-items: center; gap: 9px;
+      padding: 10px 9px;
+      border-radius: 7px;
+      color: #9691a5;
+      font-size: 10px;
+      margin-bottom: 3px;
+    }
+    .side-link.active {
+      background: rgba(157,127,255,.13);
+      color: #d4c6ff;
+      border: 1px solid rgba(157,127,255,.1);
+    }
+    .side-link .ico { width: 13px; text-align: center; }
+    .dash-main { padding: 20px; min-width: 0; }
+    .dash-heading {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+      margin-bottom: 20px;
+    }
+    .dash-heading h3 { font: 700 18px Manrope,sans-serif; margin-bottom: 5px; letter-spacing: -.5px; }
+    .dash-heading p { font-size: 10px; color: var(--muted); margin: 0; }
+    .period {
+      border: 1px solid var(--line); border-radius: 6px;
+      padding: 7px; font-size: 9px; color: #b6b1c3;
+      white-space: nowrap;
+    }
+    .metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; }
+    .metric {
+      border: 1px solid var(--line);
+      background: linear-gradient(145deg,#201e29,#191820);
+      padding: 13px 11px;
+      border-radius: 9px;
+      min-width: 0;
+    }
+    .metric-label { font-size: 9px; color: #9994a8; margin-bottom: 10px; }
+    .metric-value { font: 700 clamp(12px,1.5vw,20px) Manrope,sans-serif; letter-spacing: -.6px; overflow-wrap: anywhere; }
+    .metric-note { margin-top: 8px; color: var(--mint); font-size: 8px; }
+    .chart-card {
+      border: 1px solid var(--line);
+      background: #191820;
+      border-radius: 10px;
+      padding: 15px;
+      margin-top: 12px;
+    }
+    .chart-title { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 18px; }
+    .chart-title span { color: #928da2; }
+    .chart { height: 105px; position: relative; overflow: hidden; }
+    .chart svg { width: 100%; height: 100%; overflow: visible; }
+    .chart-grid line { stroke: rgba(255,255,255,.07); stroke-dasharray: 3 5; }
+    .transactions { margin-top: 16px; }
+    .transactions-head {
+      display: flex; justify-content: space-between; gap: 10px;
+      font-size: 10px; margin-bottom: 12px;
+    }
+    .transactions-head a { color: #bca9ff; }
+    .tx {
+      display: grid;
+      grid-template-columns: 25px minmax(0,1fr) auto;
+      gap: 9px;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .tx:last-child { border-bottom: 0; }
+    .tx-icon {
+      width: 25px; height: 25px; display: grid; place-items: center;
+      background: #282333; color: #c6b4ff; border-radius: 7px;
+      font-size: 12px;
+    }
+    .tx-name { font-size: 9px; font-weight: 700; }
+    .tx-meta { color: #8c879b; font-size: 8px; margin-top: 4px; }
+    .tx-amount { font-size: 10px; font-weight: 700; text-align: right; }
+    .tx-status { font-size: 8px; color: var(--mint); margin-top: 4px; text-align: right; }
+
+    /* Proof points */
+    .trust-strip {
+      border-block: 1px solid var(--line);
+      background: rgba(255,255,255,.012);
+    }
+    .trust-inner {
+      min-height: 92px; display: flex; align-items: center;
+      justify-content: space-between; gap: 25px; flex-wrap: wrap;
+    }
+    .trust-title { font-size: 10px; color: #898496; letter-spacing: 1px; text-transform: uppercase; }
+    .trust-item { display: flex; align-items: center; gap: 10px; color: #b5b0c2; font-size: 12px; }
+    .trust-item b { color: var(--gold); font-size: 17px; font-weight: 500; }
+
+    /* Section system */
+    section.content-section { padding-block: 105px; }
+    .section-heading { max-width: 680px; margin-bottom: 42px; }
+    .section-kicker {
+      color: var(--gold); font-size: 10px; letter-spacing: 2px;
+      text-transform: uppercase; font-weight: 700; margin-bottom: 15px;
+    }
+    h2 {
+      font: 700 clamp(30px,4vw,47px)/1.17 Manrope,sans-serif;
+      letter-spacing: -1.9px;
+      margin-bottom: 17px;
+    }
+    .section-heading p {
+      color: #a6a1b2; font-size: 14px; line-height: 1.9; margin: 0;
+    }
+    .features-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 13px; }
+    .feature {
+      position: relative; overflow: hidden;
+      min-height: 205px; padding: 24px 20px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: linear-gradient(145deg,rgba(31,29,40,.92),rgba(22,21,28,.9));
+      transition: transform .25s,border-color .25s;
+    }
+    .feature:hover { transform: translateY(-4px); border-color: rgba(165,138,255,.35); }
+    .feature:after {
+      content: ""; position: absolute; width: 90px; height: 90px;
+      right: -50px; top: -50px; border-radius: 50%;
+      background: rgba(157,127,255,.1); filter: blur(20px);
+    }
+    .feature-icon {
+      width: 42px; height: 42px; display: grid; place-items: center;
+      color: #c8b7ff; background: rgba(153,121,255,.1);
+      border: 1px solid rgba(153,121,255,.14); border-radius: 11px;
+      font-size: 18px; margin-bottom: 21px;
+    }
+    .feature h3 { font: 700 14px Manrope,sans-serif; margin-bottom: 10px; }
+    .feature p { color: #9d98aa; font-size: 11px; line-height: 1.8; margin: 0; }
+    .feature-tag {
+      display: inline-block; margin-top: 14px; color: #c8b8ff;
+      font-size: 9px; letter-spacing: .4px;
+    }
+
+    /* Enterprise spotlight */
+    .spotlight {
+      display: grid; grid-template-columns: .9fr 1.1fr;
+      gap: 65px; align-items: center;
+      border: 1px solid var(--line); border-radius: 20px;
+      background: radial-gradient(ellipse at 100% 0,rgba(109,76,186,.15),transparent 48%),#17161e;
+      padding: clamp(26px,5vw,60px);
+    }
+    .spotlight-copy p { color: #aaa5b6; font-size: 13px; line-height: 1.95; }
+    .check-list { list-style: none; margin: 25px 0 0; padding: 0; }
+    .check-list li {
+      display: flex; gap: 12px; align-items: flex-start;
+      margin: 16px 0; color: #d4cfde; font-size: 12px; line-height: 1.7;
+    }
+    .check {
+      color: var(--mint); flex-shrink: 0;
+      width: 19px; height: 19px; border: 1px solid rgba(130,216,186,.24);
+      background: rgba(130,216,186,.07); border-radius: 6px;
+      display: grid; place-items: center; font-size: 11px;
+    }
+    .control-panel { display: grid; gap: 11px; }
+    .control-row {
+      display: grid; grid-template-columns: 43px minmax(0,1fr) auto;
+      align-items: center; gap: 13px;
+      padding: 17px; border: 1px solid var(--line);
+      background: rgba(28,26,36,.88); border-radius: 11px;
+    }
+    .control-icon {
+      width: 42px; height: 42px; display: grid; place-items: center;
+      border-radius: 10px; background: rgba(165,138,255,.1); color: #c8b7ff; font-size: 17px;
+    }
+    .control-row h3 { font: 700 12px Manrope,sans-serif; margin-bottom: 5px; }
+    .control-row p { margin: 0; color: #928da0; font-size: 10px; line-height: 1.6; }
+    .status {
+      border-radius: 100px; padding: 6px 8px;
+      font-size: 8px; font-weight: 700; white-space: nowrap;
+      background: rgba(130,216,186,.08); color: var(--mint);
+      border: 1px solid rgba(130,216,186,.15);
+    }
+    .status.demo { color: var(--gold); background: rgba(215,187,133,.07); border-color: rgba(215,187,133,.17); }
+    .status.inactive { color: #b2adbb; background: rgba(178,173,187,.06); border-color: var(--line); }
+
+    /* Workflow */
+    .workflow {
+      display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 22px;
+      counter-reset: steps;
+    }
+    .step { padding: 25px 20px; border-top: 1px solid rgba(165,138,255,.3); counter-increment: steps; }
+    .step:before {
+      content: "0" counter(steps);
+      display: block; font: 700 25px Manrope,sans-serif;
+      color: var(--purple); margin-bottom: 20px;
+    }
+    .step h3 { font: 700 14px Manrope,sans-serif; margin-bottom: 10px; }
+    .step p { color: #9c97a9; font-size: 11px; line-height: 1.8; }
+
+    /* Security & governance */
+    .security-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .security-card {
+      padding: 29px; border: 1px solid var(--line);
+      border-radius: 14px; background: #17161e;
+    }
+    .security-card h3 { font: 700 16px Manrope,sans-serif; margin: 17px 0 10px; }
+    .security-card p { font-size: 12px; color: #a19cad; line-height: 1.9; margin: 0; }
+    .security-symbol { font-size: 24px; color: var(--gold); }
+
+    /* CTA / footer */
+    .final-cta {
+      position: relative; overflow: hidden; text-align: center;
+      padding: 70px 30px; border: 1px solid rgba(165,138,255,.2);
+      border-radius: 20px;
+      background: radial-gradient(ellipse at 50% 100%,rgba(111,77,195,.22),transparent 65%),#18161f;
+    }
+    .final-cta h2 { max-width: 700px; margin: 18px auto; }
+    .final-cta p { max-width: 570px; margin: 0 auto 25px; color: #aaa5b6; font-size: 13px; line-height: 1.9; }
+    footer { padding: 35px 0 25px; border-top: 1px solid var(--line); }
+    .footer-main { display: flex; justify-content: space-between; gap: 35px; flex-wrap: wrap; padding-bottom: 28px; }
+    .footer-about { max-width: 350px; }
+    .footer-about p { color: #918c9e; font-size: 11px; line-height: 1.9; margin-top: 16px; }
+    .footer-links { display: flex; gap: 55px; flex-wrap: wrap; }
+    .footer-group strong {
+      display: block; font-size: 10px; letter-spacing: .8px;
+      text-transform: uppercase; margin-bottom: 15px; color: #ddd8e7;
+    }
+    .footer-group a { display: block; color: #918c9e; font-size: 11px; margin: 12px 0; }
+    .footer-group a:hover { color: white; }
+    .footer-bottom {
+      display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+      padding-top: 20px; border-top: 1px solid var(--line);
+      color: #777284; font-size: 10px; line-height: 1.8;
+    }
+
+    @media (min-width: 1500px) {
+      .hero { padding-top: 110px; padding-bottom: 95px; }
+    }
+    @media (max-width: 1050px) {
+      .nav-links { gap: 15px; }
+      .hero { gap: 30px; }
+      .features-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+      .spotlight { gap: 30px; }
+      .dash-body { grid-template-columns: 112px minmax(0,1fr); }
+      .dash-side { padding-inline: 6px; }
+    }
+    @media (max-width: 760px) {
+      .nav { min-height: 69px; }
+      .menu-toggle {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 42px; height: 42px; border-radius: 9px;
+        border: 1px solid var(--line); background: #1b1a23; color: white;
+        font-size: 20px; cursor: pointer;
+      }
+      .nav-links {
+        display: none; position: absolute; top: 69px; left: 0; right: 0;
+        padding: 20px; background: #15141b;
+        border-bottom: 1px solid var(--line);
+        flex-direction: column; align-items: stretch; gap: 0;
+      }
+      .nav-links.open { display: flex; }
+      .nav-links a { padding: 13px 6px; border-bottom: 1px solid var(--line); }
+      .nav-actions .btn-secondary { display: none; }
+      .hero { grid-template-columns: 1fr; padding-top: 65px; padding-bottom: 55px; gap: 40px; }
+      h1 { letter-spacing: -2.2px; }
+      .dashboard { transform: none; }
+      .dash-body { grid-template-columns: 100px minmax(0,1fr); }
+      .dash-main { padding: 13px; }
+      .dash-side { padding-top: 14px; }
+      .side-link { font-size: 9px; gap: 5px; padding: 9px 5px; }
+      .side-caption { padding-left: 5px; font-size: 7px; }
+      .metric { padding: 10px 8px; }
+      .metric-label { font-size: 8px; }
+      .metric-note { font-size: 7px; }
+      .trust-inner { justify-content: flex-start; padding-block: 25px; }
+      section.content-section { padding-block: 70px; }
+      .spotlight { grid-template-columns: 1fr; }
+      .workflow { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; }
+      .security-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 450px) {
+      .container { padding-inline: 17px; }
+      .brand-name { font-size: 17px; }
+      .brand-caption { font-size: 8px; letter-spacing: 1px; }
+      .brand-mark { width: 35px; height: 35px; }
+      .nav-actions .btn { display: none; }
+      .hero { padding-top: 48px; }
+      h1 { font-size: 42px; }
+      .hero-copy > p { font-size: 13px; }
+      .hero-buttons { align-items: stretch; }
+      .hero-buttons .btn { flex: 1 1 100%; }
+      .dash-body { grid-template-columns: 1fr; }
+      .dash-side { display: none; }
+      .dash-heading h3 { font-size: 16px; }
+      .metrics { gap: 5px; }
+      .metric { padding: 10px 6px; }
+      .metric-value { font-size: 13px; }
+      .chart-card { padding: 11px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .feature { min-height: auto; }
+      .workflow { grid-template-columns: 1fr; }
+      .control-row { grid-template-columns: 37px minmax(0,1fr); padding: 13px; gap: 10px; }
+      .control-icon { width: 36px; height: 36px; }
+      .control-row .status { grid-column: 2; justify-self: start; }
+      .footer-links { gap: 28px; }
+      .final-cta { padding: 45px 20px; }
+      .footer-bottom { flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+      }
+    }
   </style>
 </head>
+
 <body>
-  <header>
-    <div class="topbar">
-      <div>
-        <a class="brand" href="/">TermiNull v1.0</a>
-        <div class="subbrand">Company treasury · Lunul PoA</div>
-      </div>
-      <span class="network">Configured network · chain 448000</span>
+<header>
+  <div class="container nav">
+    <a class="brand" href="/" aria-label="TermiNull home">
+      <span class="brand-mark">T</span>
+      <span>
+        <span class="brand-name">Termi<span>Null</span></span>
+        <span class="brand-caption">Enterprise Financial Suite</span>
+      </span>
+    </a>
+
+    <nav class="nav-links" id="mainNav" aria-label="Main navigation">
+      <a href="#platform">Platform</a>
+      <a href="#capabilities">Capabilities</a>
+      <a href="#governance">Governance</a>
+      <a href="#security">Security</a>
+    </nav>
+
+    <div class="nav-actions">
+      <a class="btn btn-secondary" href="/app">Sign in</a>
+      <a class="btn btn-primary" href="/app">Open workspace <span>↗</span></a>
+      <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation" aria-expanded="false" aria-controls="mainNav">☰</button>
     </div>
-  </header>
-  <main>
-    <section class="hero">
-      <div class="hero-copy">
-        <span class="eyebrow">Wallet-connected company finance</span>
-        <h1>Treasury operations, connected to your wallet.</h1>
-        <p>Manage employee and supplier records, payroll transfers, supplier invoices, escrow, DAO governance, and confirmed transaction reporting in one company workspace.</p>
-        <div class="actions">
-          <a class="button" href="/app">Open company workspace</a>
-          <a class="button secondary" href="/app">Connect wallet</a>
+  </div>
+</header>
+
+<main>
+  <section class="container hero" id="platform">
+    <div class="hero-copy">
+      <span class="eyebrow"><span class="pulse"></span> Corporate finance, reimagined</span>
+      <h1>Your enterprise.<br>Your capital.<br><em>One command centre.</em></h1>
+      <p>
+        Bring treasury operations, employee payments, supplier management,
+        project finance and financial reporting into one connected corporate
+        workspace. Built for organisations that demand clarity, control and
+        a more considered approach to financial operations.
+      </p>
+
+      <div class="hero-buttons">
+        <a class="btn btn-primary" href="/app">Enter TermiNull <span>↗</span></a>
+        <a class="btn" href="#capabilities">Explore the platform <span>↓</span></a>
+      </div>
+
+      <div class="trust-line">
+        <span class="trust-icon">✧</span>
+        <span>Enterprise workflows · Wallet-connected operations · On-chain settlement</span>
+      </div>
+    </div>
+
+    <div class="preview-wrap" aria-label="Illustrative TermiNull dashboard preview">
+      <div class="glow"></div>
+      <div class="dashboard">
+        <div class="dash-top">
+          <div class="dash-label">T <span>TERMINULL</span> <span style="color:#777284">/ TREASURY</span></div>
+          <span class="demo-label">ILLUSTRATIVE PREVIEW</span>
+        </div>
+
+        <div class="dash-body">
+          <aside class="dash-side">
+            <div class="side-caption">WORKSPACE</div>
+            <div class="side-link active"><span class="ico">▦</span> Overview</div>
+            <div class="side-link"><span class="ico">◈</span> Accounts</div>
+            <div class="side-link"><span class="ico">⇄</span> Payments</div>
+            <div class="side-link"><span class="ico">♙</span> Employees</div>
+            <div class="side-link"><span class="ico">▤</span> Suppliers</div>
+            <div class="side-link"><span class="ico">◷</span> Projects</div>
+            <div class="side-link"><span class="ico">⌘</span> Governance</div>
+            <div class="side-caption" style="margin-top:22px">MANAGEMENT</div>
+            <div class="side-link"><span class="ico">▧</span> Reporting</div>
+            <div class="side-link"><span class="ico">⚙</span> Settings</div>
+          </aside>
+
+          <div class="dash-main">
+            <div class="dash-heading">
+              <div>
+                <h3>Treasury overview</h3>
+                <p>Your corporate financial workspace</p>
+              </div>
+              <span class="period">Overview ▾</span>
+            </div>
+
+            <div class="metrics">
+              <div class="metric">
+                <div class="metric-label">Treasury balance</div>
+                <div class="metric-value">— USDT</div>
+                <div class="metric-note" style="color:#aaa5b6">Connect to retrieve</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Transactions</div>
+                <div class="metric-value">—</div>
+                <div class="metric-note" style="color:#aaa5b6">Confirmed activity</div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Pending items</div>
+                <div class="metric-value">—</div>
+                <div class="metric-note" style="color:#aaa5b6">Awaiting review</div>
+              </div>
+            </div>
+
+            <div class="chart-card">
+              <div class="chart-title">
+                <strong>Treasury activity</strong>
+                <span>Illustrative visual</span>
+              </div>
+              <div class="chart">
+                <svg viewBox="0 0 440 105" preserveAspectRatio="none" role="img" aria-label="Decorative illustrative treasury activity line, not live data">
+                  <defs>
+                    <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stop-color="#a58aff" stop-opacity=".25"/>
+                      <stop offset="100%" stop-color="#a58aff" stop-opacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <g class="chart-grid">
+                    <line x1="0" y1="15" x2="440" y2="15"/>
+                    <line x1="0" y1="43" x2="440" y2="43"/>
+                    <line x1="0" y1="71" x2="440" y2="71"/>
+                    <line x1="0" y1="99" x2="440" y2="99"/>
+                  </g>
+                  <path d="M0 78 L30 68 L58 74 L85 46 L112 54 L142 35 L171 48 L200 26 L228 40 L258 19 L288 33 L315 25 L344 43 L373 15 L404 26 L440 8 L440 105 L0 105 Z" fill="url(#chartFill)"/>
+                  <path d="M0 78 L30 68 L58 74 L85 46 L112 54 L142 35 L171 48 L200 26 L228 40 L258 19 L288 33 L315 25 L344 43 L373 15 L404 26 L440 8" fill="none" stroke="#a58aff" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+                </svg>
+              </div>
+            </div>
+
+            <div class="transactions">
+              <div class="transactions-head">
+                <strong>Recent activity</strong>
+                <span style="color:#8e899d">Illustrative examples</span>
+              </div>
+              <div class="tx">
+                <div class="tx-icon">↗</div>
+                <div><div class="tx-name">Supplier settlement</div><div class="tx-meta">Payment record</div></div>
+                <div><div class="tx-amount">— USDT</div><div class="tx-status" style="color:#aaa5b6">Example</div></div>
+              </div>
+              <div class="tx">
+                <div class="tx-icon">＋</div>
+                <div><div class="tx-name">Payroll batch</div><div class="tx-meta">Payment record</div></div>
+                <div><div class="tx-amount">— USDT</div><div class="tx-status" style="color:#aaa5b6">Example</div></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      <div class="hero-aside">
-        <article class="status-card">
-          <span>Settlement asset</span>
-          <strong>USDT · 18 decimals</strong>
-          <p>Balances and transfers use the configured token contract on chain 448000.</p>
-        </article>
-        <article class="status-card">
-          <span>Shielded pool</span>
-          <strong>Inactive</strong>
-          <p>Shielding and unshielding remain disabled pending the redeployed pool, verifier, and matching proof interfaces.</p>
-        </article>
+    </div>
+  </section>
+
+  <div class="trust-strip">
+    <div class="container trust-inner">
+      <div class="trust-title">A unified financial workspace</div>
+      <div class="trust-item"><b>◈</b> Treasury & payments</div>
+      <div class="trust-item"><b>⌘</b> Corporate governance</div>
+      <div class="trust-item"><b>▤</b> Accounting & reporting</div>
+      <div class="trust-item"><b>✧</b> Privacy-ready architecture</div>
+    </div>
+  </div>
+
+  <section class="container content-section" id="capabilities">
+    <div class="section-heading">
+      <div class="section-kicker">The platform</div>
+      <h2>Every moving part of your business. In one place.</h2>
+      <p>
+        From everyday payments to organisational structure and treasury
+        oversight, TermiNull brings your corporate workflows into a single
+        operating environment designed to support better financial decisions.
+      </p>
+    </div>
+
+    <div class="features-grid">
+      <article class="feature">
+        <div class="feature-icon">▦</div>
+        <h3>Executive dashboard</h3>
+        <p>A central view of treasury activity, operational records, payment workflows and company information.</p>
+        <a class="feature-tag" href="/app">Explore workspace ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">◈</div>
+        <h3>Accounts & payments</h3>
+        <p>Manage company wallet connectivity, settlement assets and payment activity in one place.</p>
+        <a class="feature-tag" href="/app">Explore payments ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">⌂</div>
+        <h3>Company profile & locations</h3>
+        <p>Organise company information, business locations and key administrative details.</p>
+        <a class="feature-tag" href="/app">Company management ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">♙</div>
+        <h3>Employees & payroll</h3>
+        <p>Maintain employee wallet records, manage validated rosters and prepare direct payment batches.</p>
+        <a class="feature-tag" href="/app">Workforce operations ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">⌘</div>
+        <h3>Organogram</h3>
+        <p>Represent your corporate structure, reporting relationships and organisational responsibilities.</p>
+        <a class="feature-tag" href="/app">View organisation ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">▤</div>
+        <h3>Suppliers & invoices</h3>
+        <p>Maintain supplier records, submit invoice details and follow payment status through the workflow.</p>
+        <a class="feature-tag" href="/app">Supplier operations ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">◷</div>
+        <h3>Projects & teams</h3>
+        <p>Bring project records, team assignments and business activities into your company workspace.</p>
+        <a class="feature-tag" href="/app">Project management ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">◎</div>
+        <h3>Client acquisition</h3>
+        <p>Support client and commercial relationship records alongside your broader financial operations.</p>
+        <a class="feature-tag" href="/app">Client management ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">▧</div>
+        <h3>On-chain accounting</h3>
+        <p>Review supported transaction records and confirmed network activity for financial reconciliation.</p>
+        <a class="feature-tag" href="/app">Transaction records ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">⬡</div>
+        <h3>Escrow vault</h3>
+        <p>Organise escrow-related records and review the availability of supported treasury and invoice workflows.</p>
+        <a class="feature-tag" href="/app">Escrow workspace ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">⚖</div>
+        <h3>DAO governance</h3>
+        <p>Explore governance records and supported company decision workflows designed around transparent rules.</p>
+        <a class="feature-tag" href="/app">Governance tools ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">▥</div>
+        <h3>Reporting & audit</h3>
+        <p>Review company records, confirmed transaction receipts and supported CSV exports for further analysis.</p>
+        <a class="feature-tag" href="/app">Reporting workspace ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">⚙</div>
+        <h3>Company settings</h3>
+        <p>Configure available company details and manage workspace-related settings.</p>
+        <a class="feature-tag" href="/app">Configure workspace ↗</a>
+      </article>
+      <article class="feature">
+        <div class="feature-icon">◇</div>
+        <h3>Privacy / ZK</h3>
+        <p>A dedicated area for future privacy functionality, clearly separated from currently available operations.</p>
+        <span class="feature-tag" style="color:#aaa5b6">Inactive · Not available</span>
+      </article>
+      <article class="feature" style="background:linear-gradient(145deg,#252035,#191720)">
+        <div class="feature-icon" style="color:var(--gold);background:rgba(215,187,133,.08)">✧</div>
+        <h3>Built for financial discretion</h3>
+        <p>Privacy-oriented infrastructure is part of the longer-term vision, without confusing planned capabilities with live functionality.</p>
+        <a class="feature-tag" href="#security">Our approach ↗</a>
+      </article>
+      <article class="feature" style="display:flex;flex-direction:column;justify-content:center;align-items:flex-start">
+        <div class="feature-icon">↗</div>
+        <h3>Your company workspace</h3>
+        <p>Access the application to explore the functionality available to your connected company account.</p>
+        <a class="btn btn-primary" href="/app" style="margin-top:20px">Open TermiNull ↗</a>
+      </article>
+    </div>
+  </section>
+
+  <section class="container content-section" style="padding-top:10px">
+    <div class="spotlight">
+      <div class="spotlight-copy">
+        <div class="section-kicker">Financial operations</div>
+        <h2>More control.<br>Less fragmentation.</h2>
+        <p>
+          Corporate finance rarely happens in one place. Payroll sits apart
+          from treasury, invoices from approvals, and payment records from
+          reporting. TermiNull brings these workflows together around a
+          connected company workspace and supported network transactions.
+        </p>
+        <ul class="check-list">
+          <li><span class="check">✓</span><span>Keep employee, supplier and company records organised.</span></li>
+          <li><span class="check">✓</span><span>Coordinate payment workflows and review transaction confirmations.</span></li>
+          <li><span class="check">✓</span><span>Access supported reporting and export tools for reconciliation.</span></li>
+          <li><span class="check">✓</span><span>Separate operational functionality from planned privacy features.</span></li>
+        </ul>
+        <a class="btn btn-primary" href="/app" style="margin-top:20px">Enter the workspace ↗</a>
       </div>
-    </section>
-    <section class="features" aria-label="Workspace features">
-      <article class="feature"><h2>Employees & payroll</h2><p>Maintain wallet-based employee records, import validated CSV rosters, and submit direct USDT payments.</p></article>
-      <article class="feature"><h2>Suppliers & invoices</h2><p>Onboard suppliers, submit invoices against the company serial, and track payment status.</p></article>
-      <article class="feature"><h2>DAO & escrow</h2><p>Deploy company templates and review on-chain treasury and invoice escrow activity.</p></article>
-      <article class="feature"><h2>Reports & exports</h2><p>Review company records and confirmed transaction receipts, with CSV export and upload templates.</p></article>
-    </section>
-  </main>
-  <footer>
-    Company membership and access are tied to the connected wallet. Reports include confirmed network activity only. Privacy-pool balances and actions are not available.
-  </footer>
+
+      <div class="control-panel">
+        <div class="control-row">
+          <div class="control-icon">◈</div>
+          <div><h3>Treasury & settlement</h3><p>Configured token contract · Chain 448000</p></div>
+          <span class="status">Configured</span>
+        </div>
+        <div class="control-row">
+          <div class="control-icon">♙</div>
+          <div><h3>Employee payments</h3><p>Wallet records and payment workflow</p></div>
+          <span class="status demo">Workflow</span>
+        </div>
+        <div class="control-row">
+          <div class="control-icon">▤</div>
+          <div><h3>Supplier invoicing</h3><p>Supplier records and invoice tracking</p></div>
+          <span class="status demo">Workflow</span>
+        </div>
+        <div class="control-row">
+          <div class="control-icon">▧</div>
+          <div><h3>Confirmed transaction reporting</h3><p>Network receipts and supported exports</p></div>
+          <span class="status">Supported</span>
+        </div>
+        <div class="control-row">
+          <div class="control-icon">◇</div>
+          <div><h3>Shielded transactions</h3><p>Pool, verifier and proof integration pending</p></div>
+          <span class="status inactive">Inactive</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="container content-section" id="governance">
+    <div class="section-heading">
+      <div class="section-kicker">A connected operating model</div>
+      <h2>From company setup to financial oversight.</h2>
+      <p>
+        A coherent journey for teams managing company information,
+        payment activity and financial records. Actual available actions
+        depend on the connected workspace and deployed functionality.
+      </p>
+    </div>
+
+    <div class="workflow">
+      <article class="step">
+        <h3>Establish your workspace</h3>
+        <p>Connect a compatible wallet and access the company workspace associated with your account.</p>
+      </article>
+      <article class="step">
+        <h3>Organise your operations</h3>
+        <p>Maintain company, employee, supplier and project records in their respective areas.</p>
+      </article>
+      <article class="step">
+        <h3>Manage supported payments</h3>
+        <p>Review payment details, submit available transfers and verify transaction confirmations.</p>
+      </article>
+      <article class="step">
+        <h3>Review and reconcile</h3>
+        <p>Use available transaction records and export tools to support your internal reporting process.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="container content-section" id="security" style="padding-top:0">
+    <div class="section-heading">
+      <div class="section-kicker">Infrastructure & responsibility</div>
+      <h2>Built around control, clarity and discretion.</h2>
+      <p>
+        Financial technology for organisations that take operational
+        accountability seriously. Privacy is an important design objective,
+        but it should never be confused with an unverified security claim.
+      </p>
+    </div>
+
+    <div class="security-grid">
+      <article class="security-card">
+        <div class="security-symbol">◈</div>
+        <h3>Connected to the Lunul network</h3>
+        <p>
+          TermiNull is configured for the Lunul network, chain ID 448000,
+          with USDT as the stated settlement asset. Supported balances and
+          transaction details depend on the deployed contracts and connected wallet.
+        </p>
+      </article>
+      <article class="security-card">
+        <div class="security-symbol">⌘</div>
+        <h3>Designed for accountable operations</h3>
+        <p>
+          Connected-wallet access, transaction confirmation and supported
+          record exports help teams review activity. Organisations should
+          retain appropriate internal controls, authorisation procedures,
+          accounting records and independent compliance processes.
+        </p>
+      </article>
+      <article class="security-card">
+        <div class="security-symbol">◇</div>
+        <h3>Privacy with transparent status</h3>
+        <p>
+          Shielding and unshielding are not currently available while the
+          required pool, verifier and proof interfaces remain pending.
+          No active ZK privacy or anonymous transaction capability is implied.
+        </p>
+      </article>
+      <article class="security-card">
+        <div class="security-symbol">▧</div>
+        <h3>Reporting grounded in records</h3>
+        <p>
+          Transaction reports should distinguish confirmed network activity
+          from pending requests and internal database records. On-chain
+          confirmation alone is not a substitute for a complete accounting audit.
+        </p>
+      </article>
+    </div>
+  </section>
+
+  <section class="container content-section" style="padding-top:0">
+    <div class="final-cta">
+      <span class="eyebrow"><span class="pulse"></span> Your financial workspace awaits</span>
+      <h2>Bring your company's financial operations into focus.</h2>
+      <p>
+        Explore the TermiNull workspace and discover the tools currently
+        available to your connected company account.
+      </p>
+      <a class="btn btn-primary" href="/app">Open TermiNull workspace ↗</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="container">
+    <div class="footer-main">
+      <div class="footer-about">
+        <a class="brand" href="/">
+          <span class="brand-mark">T</span>
+          <span>
+            <span class="brand-name">Termi<span>Null</span></span>
+            <span class="brand-caption">Enterprise Financial Suite</span>
+          </span>
+        </a>
+        <p>
+          Corporate treasury and financial operations within the Lunul
+          ecosystem. Designed to bring company records, payment workflows
+          and supported on-chain activity into one connected workspace.
+        </p>
+      </div>
+
+      <div class="footer-links">
+        <div class="footer-group">
+          <strong>Platform</strong>
+          <a href="#capabilities">Capabilities</a>
+          <a href="#governance">Workflows</a>
+          <a href="/app">Company workspace</a>
+        </div>
+        <div class="footer-group">
+          <strong>Infrastructure</strong>
+          <a href="#security">Security approach</a>
+          <a href="https://lunul.org">Lunul ecosystem ↗</a>
+          <a href="https://scan.lunul.org">Network explorer ↗</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>© <span id="year">2026</span> TermiNull · Part of the Lunul ecosystem</span>
+      <span>Enterprise financial software. Not a bank, investment adviser or guarantee of regulatory compliance.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  (function () {
+    const toggle = document.getElementById('menuToggle');
+    const nav = document.getElementById('mainNav');
+
+    if (toggle && nav) {
+      toggle.addEventListener('click', function () {
+        const isOpen = nav.classList.toggle('open');
+        toggle.setAttribute('aria-expanded', String(isOpen));
+        toggle.textContent = isOpen ? '×' : '☰';
+      });
+
+      nav.querySelectorAll('a').forEach(function (link) {
+        link.addEventListener('click', function () {
+          nav.classList.remove('open');
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.textContent = '☰';
+        });
+      });
+    }
+
+    const year = document.getElementById('year');
+    if (year) year.textContent = new Date().getFullYear();
+  })();
+</script>
 </body>
 </html>

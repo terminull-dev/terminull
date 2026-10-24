@@ -28,10 +28,10 @@
     .topbar { min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:1rem; }
     .brand { display:inline-flex;align-items:center;gap:.7rem;color:#fff;text-decoration:none;font-weight:800;font-size:.95rem;letter-spacing:.025em; }
     .brand-mark { display:grid;place-items:center;width:2rem;height:2rem;border:1px solid rgba(170,136,255,.45);border-radius:.65rem;color:var(--accent);background:linear-gradient(145deg,rgba(170,136,255,.2),rgba(170,136,255,.04));font-size:1rem;font-weight:850; }
-    .brand-wordmark { display:flex;align-items:baseline;gap:.35rem; }
+    .brand-wordmark { display:flex;flex-direction:column;align-items:flex-start;gap:.05rem; }
     .brand-wordmark strong { font-family:Manrope,ui-sans-serif,sans-serif;font-weight:800;letter-spacing:-.035em; }
     .brand-accent { color:var(--accent); }
-    .brand-wordmark small { color:var(--muted);font-size:.75rem;font-weight:650;letter-spacing:.08em; }
+    .brand-wordmark small { color:#c8b9e8;font-size:.59rem;font-weight:700;letter-spacing:.12em; }
     .brand-note,.small { font-size:.78rem; } .brand-note,.muted { color:var(--muted); }
     .header-actions,.row { display:flex;align-items:center;gap:.7rem;flex-wrap:wrap; }
     .header-actions { justify-content:flex-end; }
@@ -145,8 +145,7 @@
   <header>
     <div class="topbar">
       <div>
-        <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">T</span><span class="brand-wordmark"><strong>TERMI<span class="brand-accent">NULL</span></strong><small>/ TREASURY</small></span></a>
-        <div class="brand-note">Enterprise financial suite · Lunul PoA</div>
+        <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">T</span><span class="brand-wordmark"><strong>TermiNull</strong><small>ENTERPRISE FINANCIAL SUITE</small></span></a>
       </div>
       <div class="header-actions">
         <span id="networkStatus" class="status-pill">Network not checked</span>
@@ -219,11 +218,15 @@
     </section>
   </main>
   <footer class="site-footer">
-    USDT address: <code id="usdtAddressDisplay">loading network configuration…</code>. Reports show company records and confirmed receipts; no private pool balance is inferred or displayed.
+    USDT address: <code id="usdtAddressDisplay">loading network configuration…</code>. The app requests a separate LUN fee sent to <code>0x8632fa855d5Dc6b59A3cF892d72CF4a94F182AAE</code>: 0.01 LUN per app-initiated on-chain action, or a flat 10 LUN for company creation and DAO deployment. Confirmed fee transfers are not refundable if the following action fails or is cancelled. Reports show company records and confirmed receipts; no private pool balance is inferred or displayed.
   </footer>
   <script>
     const CHAIN_ID_HEX = '0x6d600';
     const RPC_URL = 'https://rpc.lunul.org';
+    const FEE_TREASURY_ADDRESS = '0x8632fa855d5Dc6b59A3cF892d72CF4a94F182AAE';
+    const BASE_TRANSACTION_FEE = '0.01';
+    const COMPANY_CREATION_FEE = '10';
+    const DAO_DEPLOYMENT_FEE = '10';
     let USDT_ADDRESS = '';
     let POOL_ADDRESS = '';
     let VERIFIER_ADDRESS = '';
@@ -659,6 +662,7 @@
       if (activeTab === 'company') {
         content.innerHTML = `<section class="card"><h2>Create a company workspace</h2>
           <p class="muted">The connected wallet becomes the company owner. Registration, tax, contact, and office fields are optional and can be completed later.</p>
+          <p class="small muted">Company creation has a flat 10 LUN fee; this replaces the regular per-transaction fee.</p>
           <label for="newCompanyName">Company name</label><input id="newCompanyName" maxlength="200" autocomplete="organization">
           <div class="form-grid">
             <div><label>Legal registered name</label><input id="companyLegalName"></div><div><label>Trading name</label><input id="companyTradingName"></div>
@@ -724,6 +728,7 @@
 
     async function registerCompany() {
       try {
+        if (!(await payTreasuryFee('company creation', COMPANY_CREATION_FEE))) return;
         await api('/api/org/register', { method:'POST', body:json({
           name:document.getElementById('newCompanyName').value,
           legal_name:document.getElementById('companyLegalName').value,
@@ -745,6 +750,37 @@
       } catch (error) { showNotice(error.message, 'error'); }
     }
 
+    async function payTreasuryFee(action, feeAmount = BASE_TRANSACTION_FEE, confirmationHandled = false) {
+      if (!provider || !signer || !wallet) throw new Error('Connect the company wallet before paying the LUN fee.');
+      const network = await provider.getNetwork();
+      if (network.chainId !== BigInt(CHAIN_ID_HEX)) throw new Error('Switch the wallet to Lunul PoA before paying the LUN fee.');
+      const signerAddress = ethers.getAddress(await signer.getAddress());
+      if (signerAddress !== ethers.getAddress(wallet)) throw new Error('The connected wallet changed. Reconnect before paying the LUN fee.');
+      const feeValue = ethers.parseEther(feeAmount);
+      if (feeValue <= 0n) throw new Error('The configured LUN fee must be greater than zero.');
+      if (!confirmationHandled && !confirm(`Pay ${feeAmount} LUN to ${FEE_TREASURY_ADDRESS} before ${action}? This is a separate transfer and will not be refunded if the following action fails or is cancelled.`)) return null;
+      showNotice(`Waiting for ${feeAmount} LUN fee confirmation…`);
+      const tx = await signer.sendTransaction({ to:ethers.getAddress(FEE_TREASURY_ADDRESS), value:feeValue });
+      const receipt = await tx.wait();
+      if (receipt?.status !== 1) throw new Error(`The ${feeAmount} LUN fee transfer was not confirmed successfully.`);
+      return receipt.hash;
+    }
+
+    function formatBalance(raw, decimals = 18) {
+      const value = BigInt(raw);
+      const negative = value < 0n;
+      const absolute = negative ? -value : value;
+      const precision = BigInt(decimals);
+      const scale = 10n ** precision;
+      const cents = precision >= 2n
+        ? (absolute * 100n + scale / 2n) / scale
+        : absolute * (10n ** (2n - precision));
+      const units = cents / 100n;
+      const fraction = String(cents % 100n).padStart(2, '0');
+      const groupedUnits = new Intl.NumberFormat().format(units);
+      return `${negative ? '-' : ''}${groupedUnits}.${fraction}`;
+    }
+
     function amount(raw) { return ethers.formatUnits(BigInt(raw || '0'), 18); }
     function displayAmount(raw) {
       const value = Number(amount(raw));
@@ -762,7 +798,7 @@
     function displayWalletBalance(balance) {
       document.getElementById('usdtBalanceDisplay').textContent = balance === null
         ? 'Unavailable'
-        : `${ethers.formatUnits(balance, 18)} USDT`;
+        : `${formatBalance(balance, 18)} USDT`;
     }
 
     async function refreshHeroBalances() {
@@ -781,7 +817,7 @@
       if (context !== selectedContext) return;
       displayWalletBalance(usdt.status === 'fulfilled' ? usdt.value : null);
       document.getElementById('lunBalanceDisplay').textContent = lun.status === 'fulfilled'
-        ? `${ethers.formatEther(lun.value)} LUN`
+        ? `${formatBalance(lun.value, 18)} LUN`
         : 'Unavailable';
 
       if (!selectedContext?.serial) {
@@ -802,7 +838,7 @@
         ]);
         if (Number(decimals) !== 18) throw new Error('Configured USDT does not report 18 decimals.');
         if (context !== selectedContext) return;
-        document.getElementById('daoBalanceDisplay').textContent = `${ethers.formatUnits(balance, 18)} USDT`;
+        document.getElementById('daoBalanceDisplay').textContent = `${formatBalance(balance, 18)} USDT`;
       } catch {
         if (context === selectedContext) document.getElementById('daoBalanceDisplay').textContent = 'Unavailable';
       }
@@ -881,7 +917,7 @@
           ${invitationMarkup}
           <div class="page-heading"><div><h2>Treasury overview</h2><p>Your corporate financial workspace · ${escapeHtml(org.name)}</p></div><span class="view-pill">Overview⌄</span></div>
           <div class="overview-metrics">
-            <article class="card overview-metric"><span class="small muted">Connected wallet balance</span><strong>${balance === null ? '— USDT' : `${escapeHtml(ethers.formatUnits(balance,18))} USDT`}</strong><p>${balance === null ? 'Connect to retrieve' : 'On-chain wallet balance'}</p></article>
+            <article class="card overview-metric"><span class="small muted">Connected wallet balance</span><strong>${balance === null ? '— USDT' : `${escapeHtml(formatBalance(balance,18))} USDT`}</strong><p>${balance === null ? 'Connect to retrieve' : 'On-chain wallet balance'}</p></article>
             <article class="card overview-metric"><span class="small muted">Confirmed transactions</span><strong>${activity.length}</strong><p>Confirmed activity</p></article>
             <article class="card overview-metric"><span class="small muted">Pending invoices</span><strong>${pendingInvoices === null ? '—' : pendingInvoices}</strong><p>${pendingInvoices === null ? 'Invoice access not granted' : 'Awaiting review'}</p></article>
           </div>
@@ -894,7 +930,7 @@
       } else if (activeTab === 'accounts') {
         content.innerHTML = `<section class="card"><h2>Accounts & payments</h2>
           <p class="muted">The balance below is read from the connected wallet on Lunul PoA. Payments are direct USDT transfers and require an on-chain confirmation.</p>
-          <p>Connected wallet: <code>${escapeHtml(wallet)}</code><br>USDT balance: <strong>${balance === null ? 'Unavailable' : `${escapeHtml(ethers.formatUnits(balance,18))} USDT`}</strong></p>
+          <p>Connected wallet: <code>${escapeHtml(wallet)}</code><br>USDT balance: <strong>${balance === null ? 'Unavailable' : `${escapeHtml(formatBalance(balance,18))} USDT`}</strong></p>
           <div class="form-grid"><div><label for="paymentRecipient">Recipient wallet</label><input id="paymentRecipient" placeholder="0x…"></div>
             <div><label for="paymentAmount">Amount (USDT)</label><input id="paymentAmount" inputmode="decimal"></div>
             <div><label for="paymentMemo">Memo</label><input id="paymentMemo" maxlength="200"></div></div>
@@ -1282,7 +1318,7 @@
         </article>`;
       }));
       document.getElementById('content').innerHTML = `${canManage ? `<section class="card"><h2>Create project</h2>
-        <p class="small muted">Project budgets are on-chain DAO spending caps. Actual releases require a project-team vote and the DAO timelock.</p>
+        <p class="small muted">Project budgets are on-chain DAO spending caps. Actual releases require a project-team vote and the DAO timelock. Each on-chain action has a separate 0.01 LUN fee.</p>
         <div class="form-grid"><div><label>Project name</label><input id="projectName"></div><div><label>Budget (USDT)</label><input id="projectBudget" inputmode="decimal" value="0"></div>
           <div><label>Target start</label><input id="projectStart" type="date"></div><div><label>Target end</label><input id="projectEnd" type="date"></div></div>
         <label>Description</label><textarea id="projectDescription" rows="2"></textarea><button onclick="createProject()">Create project</button></section>` : ''}
@@ -1305,6 +1341,7 @@
         if (org.dao_address) {
           const artifacts = await getArtifacts();
           const dao = new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, signer);
+          if (!(await payTreasuryFee('project budget synchronization'))) return;
           const tx = await dao.setProjectBudget(ethers.id(String(created.id)), ethers.parseUnits(budgetText, 18));
           const receipt = await tx.wait();
           if (receipt.status !== 1) throw new Error('Project saved, but DAO budget synchronization failed.');
@@ -1362,11 +1399,12 @@
         const amountText = document.getElementById(`releaseAmount-${projectId}`).value.trim();
         const amountValue = ethers.parseUnits(amountText, 18);
         if (amountValue <= 0n) throw new Error('Release amount must be positive.');
-        if (!confirm(`Submit a ${amountText} USDT project payout proposal to the team electorate? Funds are paid only after team approval, quorum, and the DAO timelock.`)) return;
+        if (!confirm(`Submit a ${amountText} USDT project payout proposal to the team electorate? Funds are paid only after team approval, quorum, and the DAO timelock. A separate 0.01 LUN fee goes to ${FEE_TREASURY_ADDRESS} and is non-refundable if the transaction fails.`)) return;
         const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
         const artifacts = await getArtifacts();
         const dao = new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, signer);
         const voters = team.members.map(member => ethers.getAddress(member.wallet));
+        if (!(await payTreasuryFee('project payout proposal', BASE_TRANSACTION_FEE, true))) return;
         showNotice('Submitting project release proposal to the DAO…');
         const tx = await dao.createProjectProposal(ethers.id(String(project.id)), USDT_ADDRESS, recipient, amountValue, voters);
         const receipt = await tx.wait();
@@ -1391,6 +1429,7 @@
         const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
         const artifacts = await getArtifacts();
         const dao = new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, signer);
+        if (!(await payTreasuryFee('project vote'))) return;
         const tx = await dao.vote(proposalId, support);
         const receipt = await tx.wait();
         if (receipt.status !== 1) throw new Error('Project vote was not confirmed.');
@@ -1401,10 +1440,11 @@
 
     async function executeProjectProposal(projectId, proposalId) {
       try {
-        if (!confirm('Execute this project payout from the DAO treasury after the team quorum, majority, and timelock checks?')) return;
+        if (!confirm(`Execute this project payout from the DAO treasury after the team quorum, majority, and timelock checks? A separate 0.01 LUN fee goes to ${FEE_TREASURY_ADDRESS} and is non-refundable if the transaction fails.`)) return;
         const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
         const artifacts = await getArtifacts();
         const dao = new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, signer);
+        if (!(await payTreasuryFee('project payout execution', BASE_TRANSACTION_FEE, true))) return;
         const tx = await dao.execute(proposalId);
         const receipt = await tx.wait();
         if (receipt.status !== 1) throw new Error('Project payout execution failed.');
@@ -1669,7 +1709,8 @@
         const value = ethers.parseUnits(amountText, 18);
         if (value <= 0n) throw new Error('Payment amount must be greater than zero.');
         const memo = document.getElementById('paymentMemo').value.trim() || 'USDT payment';
-        if (!confirm(`Send ${amountText} USDT from ${wallet} to ${recipient}?`)) return;
+        if (!confirm(`Send ${amountText} USDT from ${wallet} to ${recipient}? A separate 0.01 LUN fee goes to ${FEE_TREASURY_ADDRESS} and is non-refundable if the transfer fails.`)) return;
+        if (!(await payTreasuryFee('USDT payment', BASE_TRANSACTION_FEE, true))) return;
         const token = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, signer);
         showNotice('Waiting for USDT payment confirmation…');
         const tx = await token.transfer(recipient, value);
@@ -1754,10 +1795,12 @@
           if (!row.wallet || !row.amount || !ethers.isAddress(row.wallet)) throw new Error(`Payment row ${index + 2} has an invalid wallet or amount.`);
           ethers.parseUnits(row.amount, 18);
         }
-        if (!confirm(`Send ${rows.length} separate USDT transfers from ${wallet}? Each transfer requires an on-chain confirmation.`)) return;
+        const totalFee = ethers.formatEther(ethers.parseEther(BASE_TRANSACTION_FEE) * BigInt(rows.length));
+        if (!confirm(`Send ${rows.length} separate USDT transfers from ${wallet}? Each transfer has its own 0.01 LUN fee (${totalFee} LUN total) sent to ${FEE_TREASURY_ADDRESS} and on-chain confirmation. Each fee is non-refundable if its transfer fails.`)) return;
         const token = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, signer);
         for (const [index, row] of rows.entries()) {
           showNotice(`Sending payment ${index + 1} of ${rows.length}…`);
+          if (!(await payTreasuryFee(`CSV payment ${index + 1}`, BASE_TRANSACTION_FEE, true))) return;
           const value = ethers.parseUnits(row.amount,18);
           const tx = await token.transfer(ethers.getAddress(row.wallet), value);
           const receipt = await tx.wait();
@@ -1840,6 +1883,7 @@
       try {
         const artifacts = await getArtifacts();
         const factory = new ethers.ContractFactory(artifacts.CompanyEscrow.abi, artifacts.CompanyEscrow.bytecode, signer);
+        if (!(await payTreasuryFee('escrow deployment'))) return;
         showNotice('Deploying company escrow contract…');
         const contract = await factory.deploy(wallet, USDT_ADDRESS);
         const receipt = await contract.deploymentTransaction().wait();
@@ -1866,12 +1910,17 @@
         const allowance = await token.allowance(wallet, org.escrow_address);
         if (allowance < value) {
           if (allowance !== 0n) {
+            if (!(await payTreasuryFee('reset USDT escrow allowance'))) return;
             const reset = await token.approve(org.escrow_address, 0);
-            await reset.wait();
+            const resetReceipt = await reset.wait();
+            if (resetReceipt?.status !== 1) throw new Error('USDT escrow allowance reset was not confirmed successfully.');
           }
+          if (!(await payTreasuryFee('approve USDT escrow allowance'))) return;
           const approval = await token.approve(org.escrow_address, value);
-          await approval.wait();
+          const approvalReceipt = await approval.wait();
+          if (approvalReceipt?.status !== 1) throw new Error('USDT escrow allowance was not confirmed successfully.');
         }
+        if (!(await payTreasuryFee('fund invoice escrow'))) return;
         showNotice('Funding invoice escrow…');
         const refundAfter = Math.floor(Date.now()/1000) + days*86400;
         const tx = await escrow.createEscrow(ethers.id(String(invoice.id)), invoice.supplier_wallet, value, refundAfter);
@@ -1889,6 +1938,7 @@
         if (!org.escrow_address) throw new Error('Company escrow contract is not configured.');
         const artifacts = await getArtifacts();
         const escrow = new ethers.Contract(org.escrow_address, artifacts.CompanyEscrow.abi, signer);
+        if (!(await payTreasuryFee(`escrow ${action}`))) return;
         const tx = await escrow[action](invoice.escrow_id);
         showNotice(`Waiting for escrow ${action} confirmation…`);
         const receipt = await tx.wait();
@@ -1905,7 +1955,7 @@
 
     async function renderDao(org) {
       if (!org.dao_address) {
-        return `<section class="card"><h2>Company DAO</h2><p class="muted">Deploys a Paris-compatible DAO contract. The connected company owner is the initial member and admin; defaults are 51% affirmative votes and a 24-hour timelock.</p><button onclick="deployDao()">Deploy DAO</button></section>`;
+        return `<section class="card"><h2>Company DAO</h2><p class="muted">Deploys a Paris-compatible DAO contract. The connected company owner is the initial member and admin; defaults are 51% affirmative votes and a 24-hour timelock.</p><p class="small muted">DAO deployment has a flat 10 LUN fee; this replaces the regular per-transaction fee.</p><button onclick="deployDao()">Deploy DAO</button></section>`;
       }
       const artifacts = await getArtifacts();
       const dao = new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, provider);
@@ -1921,7 +1971,7 @@
         proposals.push({ id, ...p });
       }
       return `<section class="card"><h2>Company DAO</h2><p>Contract: <code>${escapeHtml(org.dao_address)}</code></p>
-        <p>Quorum: ${Number(quorum)}% · Timelock: ${Math.floor(Number(delay)/3600)} hours · Treasury: ${escapeHtml(ethers.formatUnits(treasuryBalance,18))} USDT</p>
+        <p>Quorum: ${Number(quorum)}% · Timelock: ${Math.floor(Number(delay)/3600)} hours · Treasury: ${escapeHtml(formatBalance(treasuryBalance,18))} USDT</p>
         <div class="form-grid"><div><label>Fund DAO treasury (USDT)</label><input id="daoFundingAmount" inputmode="decimal"></div><button onclick="fundDao()">Transfer USDT to DAO treasury</button></div>
         <div class="form-grid"><div><label>New quorum (1–100%)</label><input id="daoQuorum" type="number" min="1" max="100" value="${Number(quorum)}"></div><div><label>Timelock hours (0–8760)</label><input id="daoDelay" type="number" min="0" max="8760" value="${Math.floor(Number(delay)/3600)}"></div></div>
         <button onclick="saveDaoSettings()">Save governance settings</button>
@@ -1934,6 +1984,7 @@
       try {
         const artifacts = await getArtifacts();
         const factory = new ethers.ContractFactory(artifacts.CompanyDAO.abi, artifacts.CompanyDAO.bytecode, signer);
+        if (!(await payTreasuryFee('DAO deployment', DAO_DEPLOYMENT_FEE))) return;
         showNotice('Deploying company DAO…');
         const contract = await factory.deploy(wallet);
         const receipt = await contract.deploymentTransaction().wait();
@@ -1958,7 +2009,9 @@
         const hours = Number(document.getElementById('daoDelay').value);
         if (!Number.isInteger(quorum) || quorum < 1 || quorum > 100 || !Number.isInteger(hours) || hours < 0 || hours > 8760) throw new Error('Quorum must be 1–100 and delay 0–8760 hours.');
         const dao = await daoContract();
-        await (await dao.setGovernance(quorum, hours*3600)).wait();
+        if (!(await payTreasuryFee('DAO governance update'))) return;
+        const receipt = await (await dao.setGovernance(quorum, hours*3600)).wait();
+        if (receipt?.status !== 1) throw new Error('DAO governance update was not confirmed successfully.');
         showNotice('DAO governance settings updated on-chain.', 'success'); await renderWorkspace();
       } catch (error) { showNotice(error.message, 'error'); }
     }
@@ -1967,7 +2020,9 @@
       try {
         const address = ethers.getAddress(document.getElementById('daoMember').value);
         const dao = await daoContract();
-        await (await dao.setMember(address, true)).wait();
+        if (!(await payTreasuryFee('DAO member addition'))) return;
+        const receipt = await (await dao.setMember(address, true)).wait();
+        if (receipt?.status !== 1) throw new Error('DAO member addition was not confirmed successfully.');
         showNotice('DAO member added on-chain.', 'success'); await renderWorkspace();
       } catch (error) { showNotice(error.message, 'error'); }
     }
@@ -1978,7 +2033,9 @@
         const value = ethers.parseUnits(document.getElementById('daoAmount').value, 18);
         if (value === 0n) throw new Error('Proposal amount must be positive.');
         const dao = await daoContract();
-        await (await dao.createProposal(USDT_ADDRESS, recipient, value)).wait();
+        if (!(await payTreasuryFee('DAO proposal creation'))) return;
+        const receipt = await (await dao.createProposal(USDT_ADDRESS, recipient, value)).wait();
+        if (receipt?.status !== 1) throw new Error('DAO proposal creation was not confirmed successfully.');
         showNotice('DAO proposal created on-chain.', 'success'); await renderWorkspace();
       } catch (error) { showNotice(error.message, 'error'); }
     }
@@ -1986,16 +2043,20 @@
     async function voteDao(id, support) {
       try {
         const dao = await daoContract();
-        await (await dao.vote(id, support)).wait();
+        if (!(await payTreasuryFee('DAO proposal vote'))) return;
+        const receipt = await (await dao.vote(id, support)).wait();
+        if (receipt?.status !== 1) throw new Error('DAO proposal vote was not confirmed successfully.');
         showNotice('Vote recorded on-chain.', 'success'); await renderWorkspace();
       } catch (error) { showNotice(error.message, 'error'); }
     }
 
     async function executeDao(id) {
       try {
-        if (!confirm('Execute this approved proposal after the on-chain quorum and timelock checks?')) return;
+        if (!confirm(`Execute this approved proposal after the on-chain quorum and timelock checks? A separate 0.01 LUN fee goes to ${FEE_TREASURY_ADDRESS} and is non-refundable if the transaction fails.`)) return;
         const dao = await daoContract();
+        if (!(await payTreasuryFee('DAO proposal execution', BASE_TRANSACTION_FEE, true))) return;
         const receipt = await (await dao.execute(id)).wait();
+        if (receipt?.status !== 1) throw new Error('DAO proposal execution was not confirmed successfully.');
         await api(`/api/org/${encodeURIComponent(context.serial)}/dao/${id}/confirm`, {
           method:'POST',
           body:json({ txHash:receipt.hash })
@@ -2050,6 +2111,7 @@
         if (value === 0n) throw new Error('Funding amount must be positive.');
         const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
         const token = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, signer);
+        if (!(await payTreasuryFee('DAO treasury funding'))) return;
         const tx = await token.transfer(org.dao_address, value);
         const receipt = await tx.wait();
         if (receipt.status !== 1) throw new Error('DAO treasury funding transaction failed.');

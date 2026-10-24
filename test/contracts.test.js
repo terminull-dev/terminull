@@ -99,7 +99,8 @@ test('workspace navigation exposes company tools and unlinked-wallet actions', (
   assert.match(html, /id="daoBalanceDisplay"/);
   assert.match(script, /provider\.getBalance\(wallet\)/);
   assert.match(script, /token\.balanceOf\(org\.dao_address\)/);
-  assert.match(script, /ethers\.formatUnits\(balance, 18\)\} USDT/);
+  assert.match(script, /formatBalance\(balance, 18\)\} USDT/);
+  assert.match(script, /formatBalance\(lun\.value, 18\)\} LUN/);
   assert.match(script, /settings:'Company settings'/);
   assert.match(script, /async function saveCompanySettings\(\)/);
   assert.match(script, /Privacy preferences saved\. Current transactions remain public/);
@@ -129,7 +130,8 @@ test('dashboard has collapsible function groups and charts only confirmed activi
     .find(content => content.includes('const tabsFor'));
   assert.match(html, /brand-mark/);
   assert.match(html, /--accent:#a58aff/);
-  assert.match(html, /<strong>TERMI<span class="brand-accent">NULL<\/span><\/strong>/);
+  assert.match(html, /<strong>TermiNull<\/strong><small>ENTERPRISE FINANCIAL SUITE<\/small>/);
+  assert.doesNotMatch(html, /<small>\/ TREASURY<\/small>|Enterprise financial suite · Lunul PoA/);
   assert.match(script, /<details class="nav-group" data-group=/);
   assert.match(script, /name:'People & partners'/);
 
@@ -146,6 +148,95 @@ test('dashboard has collapsible function groups and charts only confirmed activi
   assert.match(chart, /Confirmed monthly transaction counts:/);
   assert.match(chart, /1 confirmed transactions/);
   assert.equal((chart.match(/<circle /g) || []).length, 2);
+
+  const balanceFunction = script.match(/function formatBalance\(raw, decimals = 18\) \{[\s\S]*?\n    \}/)[0];
+  const formatBalance = new (require('node:vm').Script)(
+    `${balanceFunction}\nformatBalance`
+  ).runInNewContext({ Intl });
+  assert.equal(formatBalance(1234567890123456789012n), '1,234.57');
+  assert.equal(formatBalance(19999999999999999n), '0.02');
+  assert.equal(formatBalance(9999999999999999n), '0.01');
+  assert.equal(formatBalance(10000000000000000n), '0.01');
+  assert.equal(formatBalance(1200000000000000000n), '1.20');
+  assert.equal(formatBalance(123456789n, 6), '123.46');
+});
+
+test('treasury fees are separate confirmed transfers on the configured chain', async () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'app.html'), 'utf8');
+  const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+    .map(match => match[1])
+    .find(content => content.includes('async function payTreasuryFee'));
+  const feeFunction = script.match(/async function payTreasuryFee\(action,[\s\S]*?\n    \}/)[0];
+  const source = `
+    const CHAIN_ID_HEX = '0x6d600';
+    const FEE_TREASURY_ADDRESS = '0x8632fa855d5Dc6b59A3cF892d72CF4a94F182AAE';
+    const BASE_TRANSACTION_FEE = '0.01';
+    ${feeFunction}
+    payTreasuryFee`;
+  const transactions = [];
+  const prompts = [];
+  const environment = {
+    BigInt,
+    provider: { getNetwork: async () => ({ chainId: 448000n }) },
+    signer: {
+      getAddress: async () => '0x1111111111111111111111111111111111111111',
+      sendTransaction: async transaction => {
+        transactions.push(transaction);
+        return { wait: async () => ({ status: 1, hash: '0xfee' }) };
+      }
+    },
+    wallet: '0x1111111111111111111111111111111111111111',
+    ethers: {
+      getAddress: address => address,
+      parseEther: amount => amount === '10' ? 10n * 10n ** 18n : 10n ** 16n
+    },
+    confirm: message => { prompts.push(message); return true; },
+    showNotice: () => {}
+  };
+  const payTreasuryFee = new (require('node:vm').Script)(source).runInNewContext(environment);
+
+  assert.equal(await payTreasuryFee('USDT payment'), '0xfee');
+  assert.equal(transactions[0].to, '0x8632fa855d5Dc6b59A3cF892d72CF4a94F182AAE');
+  assert.equal(transactions[0].value, 10n ** 16n);
+  assert.match(prompts[0], /0\.01 LUN/);
+  assert.match(prompts[0], /0x8632fa855d5Dc6b59A3cF892d72CF4a94F182AAE/);
+  assert.match(prompts[0], /not be refunded/);
+
+  assert.equal(await payTreasuryFee('company creation', '10'), '0xfee');
+  assert.equal(transactions[1].value, 10n * 10n ** 18n);
+
+  environment.confirm = () => false;
+  assert.equal(await payTreasuryFee('cancelled action'), null);
+  assert.equal(transactions.length, 2);
+
+  environment.provider.getNetwork = async () => ({ chainId: 1n });
+  await assert.rejects(payTreasuryFee('wrong-chain action'), /Switch the wallet to Lunul PoA/);
+  assert.equal(transactions.length, 2);
+});
+
+test('all app-initiated on-chain actions collect the applicable LUN fee', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'app.html'), 'utf8');
+  const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+    .map(match => match[1])
+    .find(content => content.includes('async function payTreasuryFee'));
+  const actions = [
+    'registerCompany', 'createProject', 'proposeProjectRelease', 'voteProjectProposal',
+    'executeProjectProposal', 'sendUsdtPayment', 'executeMassPayments', 'deployEscrow',
+    'fundInvoice', 'escrowAction', 'deployDao', 'saveDaoSettings', 'addDaoMember',
+    'createDaoProposal', 'voteDao', 'executeDao', 'fundDao'
+  ];
+  for (const action of actions) {
+    const start = script.indexOf(`async function ${action}(`);
+    assert.notEqual(start, -1, `Expected to find ${action}()`);
+    const end = script.indexOf('\n    }', start);
+    assert.notEqual(end, -1, `Expected ${action}() to end`);
+    assert.match(script.slice(start, end), /payTreasuryFee\(/, `${action}() must collect a LUN fee`);
+  }
+  const fundInvoice = script.match(/async function fundInvoice\([^)]*\) \{([\s\S]*?)\n    \}/)[1];
+  assert.equal((fundInvoice.match(/payTreasuryFee\(/g) || []).length, 3);
+  assert.match(script, /const BASE_TRANSACTION_FEE = '0\.01'/);
+  assert.match(script, /const COMPANY_CREATION_FEE = '10'/);
+  assert.match(script, /const DAO_DEPLOYMENT_FEE = '10'/);
 });
 
 test('ZK workspace previews shielding and withdrawals with every control disabled', () => {

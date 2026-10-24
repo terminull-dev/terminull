@@ -76,3 +76,20 @@ test('wallet selection prefers MetaMask when multiple injected providers exist',
   });
   assert.equal(legacySelected, legacyProvider);
 });
+
+test('workspace navigation exposes company tools and unlinked-wallet actions', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'app.html'), 'utf8');
+  const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+    .map(match => match[1])
+    .find(content => content.includes('const tabsFor'));
+  const tabsFor = script.match(/const tabsFor = type => \(\{[\s\S]*?\n    \}\[type\] \|\| \['overview'\]\);/)[0];
+  const tabs = new (require('node:vm').Script)(`${tabsFor}\ntabsFor`).runInNewContext();
+  assert.deepEqual(Array.from(tabs('company')), [
+    'overview', 'accounts', 'employees', 'suppliers', 'invoices', 'escrow', 'dao', 'reports'
+  ]);
+  assert.deepEqual(Array.from(tabs('new')), ['overview', 'company', 'join', 'invoice']);
+  assert.match(script, /\['overview','accounts'\]\.includes\(activeTab\) \? walletUsdtBalance\(\)/);
+  assert.match(script, /async function sendUsdtPayment\(\)/);
+  assert.match(script, /activeTab === 'escrow'/);
+  assert.match(script, /activeTab === 'reports'/);
+});

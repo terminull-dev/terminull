@@ -416,13 +416,26 @@
     }
 
     const tabsFor = type => ({
-      company:['overview','employees','suppliers','invoices','dao','reports'],
+      company:['overview','accounts','employees','suppliers','invoices','escrow','dao','reports'],
       employee:['overview','activity'],
       supplier:['overview','invoices','activity'],
-      new:['overview']
+      new:['overview','company','join','invoice']
     }[type] || ['overview']);
 
-    const tabLabels = { overview:'Overview', employees:'Employees & payroll', suppliers:'Suppliers', invoices:'Supplier invoices', dao:'DAO & escrow', reports:'Reports', activity:'Transactions', invoice:'Invoice a company' };
+    const tabLabels = {
+      overview:'Dashboard',
+      accounts:'Accounts & payments',
+      employees:'Employees & payroll',
+      suppliers:'Suppliers',
+      invoices:'Supplier invoices',
+      escrow:'Escrow vault',
+      dao:'DAO governance',
+      reports:'Reporting & audit',
+      activity:'Transactions',
+      company:'Create company',
+      join:'Join a company',
+      invoice:'Invoice a company'
+    };
 
     async function renderWorkspace() {
       if (!session || !context) return;
@@ -446,35 +459,42 @@
     function openTab(tab) { activeTab = tab; renderWorkspace(); }
 
     function renderNewWallet() {
-      document.getElementById('content').innerHTML = `
-        <section class="card">
-          <h2>No company membership found for this wallet</h2>
-          <p class="muted">Register a company, request employee/supplier access using its serial, or submit an invoice using the company serial.</p>
-          <h3>Register a company</h3>
-          <label for="newCompanyName">Company name</label><input id="newCompanyName" maxlength="200">
-          <button onclick="registerCompany()">Create company workspace</button>
-        </section>
-        <section class="card">
-          <h3>Request company membership</h3>
-          <div class="form-grid"><div><label>Company serial</label><input id="joinSerial" placeholder="TERM-…"></div>
-            <div><label>Role requested</label><select id="joinRole" onchange="toggleJoinFields()"><option value="employee">Employee</option><option value="supplier">Supplier</option></select></div>
-            <div><label>Name</label><input id="joinName"></div><div id="joinTitleField"><label>Job title</label><input id="joinTitle"></div>
-            <div id="joinSalaryField"><label>Monthly USDT salary</label><input id="joinSalary" inputmode="decimal"></div>
-            <div id="joinEmailField" class="hidden"><label>Supplier contact email (optional)</label><input id="joinEmail" type="email"></div>
-          </div>
-          <button onclick="requestMembership()">Submit membership request</button>
-        </section>
-        <section class="card">
-          <h3>Invoice a company</h3>
-          <div class="form-grid">
-            <div><label for="invoiceCompanySerial">Company serial</label><input id="invoiceCompanySerial" placeholder="TERM-…"></div>
-            <div><label for="invoiceNumber">Invoice number</label><input id="invoiceNumber"></div>
-            <div><label for="invoiceAmount">Amount (USDT)</label><input id="invoiceAmount" inputmode="decimal" placeholder="0.00"></div>
-            <div><label for="invoiceDueDate">Due date</label><input id="invoiceDueDate" type="date"></div>
-          </div>
-          <label for="invoiceDescription">Description</label><textarea id="invoiceDescription" rows="3"></textarea>
-          <button onclick="submitInvoice('invoiceCompanySerial')">Submit invoice</button>
+      const content = document.getElementById('content');
+      if (activeTab === 'company') {
+        content.innerHTML = `<section class="card"><h2>Create a company workspace</h2>
+          <p class="muted">The connected wallet becomes the company owner. Your company serial will be created for supplier invoices and membership requests.</p>
+          <label for="newCompanyName">Company name</label><input id="newCompanyName" maxlength="200" autocomplete="organization">
+          <button onclick="registerCompany()">Create company workspace</button></section>`;
+      } else if (activeTab === 'join') {
+        content.innerHTML = `<section class="card"><h2>Join an existing company</h2>
+          <p class="muted">Enter the company serial and request employee or supplier access. A company owner must approve the request.</p>
+          <div class="form-grid"><div><label for="joinSerial">Company serial</label><input id="joinSerial" placeholder="TERM-…"></div>
+            <div><label for="joinRole">Role requested</label><select id="joinRole" onchange="toggleJoinFields()"><option value="employee">Employee</option><option value="supplier">Supplier</option></select></div>
+            <div><label for="joinName">Name</label><input id="joinName" autocomplete="name"></div>
+            <div id="joinTitleField"><label for="joinTitle">Job title</label><input id="joinTitle"></div>
+            <div id="joinSalaryField"><label for="joinSalary">Monthly USDT salary</label><input id="joinSalary" inputmode="decimal"></div>
+            <div id="joinEmailField" class="hidden"><label for="joinEmail">Supplier contact email (optional)</label><input id="joinEmail" type="email"></div>
+          </div><button onclick="requestMembership()">Submit membership request</button></section>`;
+      } else if (activeTab === 'invoice') {
+        content.innerHTML = invoiceFormMarkup('');
+      } else {
+        content.innerHTML = `<section class="card"><h2>Welcome to your treasury workspace</h2>
+          <p class="muted">Wallet connected: <code>${escapeHtml(wallet)}</code>. Choose a destination in the sidebar to create a company, request access to one, or invoice a company directly by its serial.</p>
+          <div class="actions"><button onclick="openTab('company')">Create a company</button><button onclick="openTab('join')">Request company access</button><button onclick="openTab('invoice')">Invoice a company</button></div>
+          <section class="card"><h3>Privacy features</h3><p class="muted">Shielding and unshielding are inactive while the pool and verifier interfaces are being redeployed.</p></section>
         </section>`;
+      }
+    }
+
+    function invoiceFormMarkup(serial = '') {
+      return `<section class="card"><h2>Invoice a company by serial</h2>
+        <p class="muted">Use the company identifier supplied by the company owner. The invoice is routed to that company's workspace.</p>
+        <div class="form-grid"><div><label for="invoiceCompanySerial">Company serial</label><input id="invoiceCompanySerial" value="${escapeHtml(serial)}" placeholder="TERM-…"></div>
+          <div><label for="invoiceNumber">Invoice number</label><input id="invoiceNumber"></div>
+          <div><label for="invoiceAmount">Amount (USDT)</label><input id="invoiceAmount" inputmode="decimal" placeholder="0.00"></div>
+          <div><label for="invoiceDueDate">Due date</label><input id="invoiceDueDate" type="date"></div></div>
+        <label for="invoiceDescription">Description</label><textarea id="invoiceDescription" rows="3"></textarea>
+        <button onclick="submitInvoice('invoiceCompanySerial')">Submit invoice</button></section>`;
     }
 
     async function registerCompany() {
@@ -522,7 +542,7 @@
         api(`/api/org/${encodeURIComponent(serial)}/suppliers`),
         api(`/api/org/${encodeURIComponent(serial)}/invoices`),
         api(`/api/org/${encodeURIComponent(serial)}/activity`),
-        activeTab === 'overview' ? walletUsdtBalance().catch(() => null) : Promise.resolve(null),
+        ['overview','accounts'].includes(activeTab) ? walletUsdtBalance().catch(() => null) : Promise.resolve(null),
         api(`/api/org/${encodeURIComponent(serial)}/join-requests`)
       ]);
       if (activeTab === 'overview') displayWalletBalance(balance);
@@ -536,6 +556,15 @@
           </div>
           <section class="card"><h2>Shielding status</h2><p class="danger">Unavailable: pool deposits and withdrawals are disabled because commitment recovery and enforced proof verification are not ready.</p><p class="small muted">Pool ${POOL_ADDRESS} · verifier ${VERIFIER_ADDRESS}</p></section>
           <section class="card"><h2>Configured contracts</h2><p>DAO: ${org.dao_address ? `<code>${escapeHtml(org.dao_address)}</code>` : '<span class="muted">Not deployed</span>'}</p><p>Escrow: ${org.escrow_address ? `<code>${escapeHtml(org.escrow_address)}</code>` : '<span class="muted">Not deployed</span>'}</p></section>`;
+      } else if (activeTab === 'accounts') {
+        content.innerHTML = `<section class="card"><h2>Accounts & payments</h2>
+          <p class="muted">The balance below is read from the connected wallet on Lunul PoA. Payments are direct USDT transfers and require an on-chain confirmation.</p>
+          <p>Connected wallet: <code>${escapeHtml(wallet)}</code><br>USDT balance: <strong>${balance === null ? 'Unavailable' : `${escapeHtml(ethers.formatUnits(balance,18))} USDT`}</strong></p>
+          <div class="form-grid"><div><label for="paymentRecipient">Recipient wallet</label><input id="paymentRecipient" placeholder="0x…"></div>
+            <div><label for="paymentAmount">Amount (USDT)</label><input id="paymentAmount" inputmode="decimal"></div>
+            <div><label for="paymentMemo">Memo</label><input id="paymentMemo" maxlength="200"></div></div>
+          <button onclick="sendUsdtPayment()">Send USDT payment</button></section>
+          <section class="card"><h2>Confirmed transactions</h2>${renderActivity(activity)}</section>`;
       } else if (activeTab === 'employees') {
         content.innerHTML = `
           <section class="card"><h2>Add employee</h2>
@@ -560,6 +589,11 @@
         content.innerHTML = `<section class="card"><h2>Supplier invoices · ${escapeHtml(org.serial)}</h2><p class="small muted">Invoices are routed to this company serial. USDT is held by the company escrow contract after funding.</p>
           ${org.escrow_address ? '<p>Escrow contract: <code>'+escapeHtml(org.escrow_address)+'</code></p>' : '<button onclick="deployEscrow()">Deploy company escrow</button>'}
           ${renderInvoices(invoices, true, Boolean(org.escrow_address))}</section>`;
+      } else if (activeTab === 'escrow') {
+        content.innerHTML = `<section class="card"><h2>Company escrow vault</h2>
+          <p class="muted">Fund an approved supplier invoice into the company escrow contract, then release payment or refund funds according to the escrow contract rules.</p>
+          ${org.escrow_address ? `<p>Contract: <code>${escapeHtml(org.escrow_address)}</code></p>` : '<p class="muted">No escrow contract is registered for this company.</p><button onclick="deployEscrow()">Deploy company escrow</button>'}
+          ${renderInvoices(invoices.filter(invoice => invoice.status === 'ESCROWED'), true, Boolean(org.escrow_address))}</section>`;
       } else if (activeTab === 'dao') {
         content.innerHTML = await renderDao(org);
       } else if (activeTab === 'reports') {
@@ -616,6 +650,29 @@
         };
         await api(`/api/org/${encodeURIComponent(context.serial)}/suppliers`, { method:'POST', body:json(body) });
         showNotice('Supplier saved.', 'success'); await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function sendUsdtPayment() {
+      try {
+        if (!USDT_ADDRESS) throw new Error('Configured USDT is unavailable. Check the Lunul RPC connection.');
+        const recipient = ethers.getAddress(document.getElementById('paymentRecipient').value.trim());
+        const amountText = document.getElementById('paymentAmount').value.trim();
+        const value = ethers.parseUnits(amountText, 18);
+        if (value <= 0n) throw new Error('Payment amount must be greater than zero.');
+        const memo = document.getElementById('paymentMemo').value.trim() || 'USDT payment';
+        if (!confirm(`Send ${amountText} USDT from ${wallet} to ${recipient}?`)) return;
+        const token = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, signer);
+        showNotice('Waiting for USDT payment confirmation…');
+        const tx = await token.transfer(recipient, value);
+        const receipt = await tx.wait();
+        if (receipt.status !== 1) throw new Error('Payment transaction did not confirm successfully.');
+        await api(`/api/org/${encodeURIComponent(context.serial)}/payments/confirm`, {
+          method:'POST',
+          body:json({ txHash:receipt.hash, recipient, amount:amountText, memo })
+        });
+        showNotice(`Payment confirmed: ${receipt.hash}`, 'success');
+        await renderWorkspace();
       } catch (error) { showNotice(error.message, 'error'); }
     }
 

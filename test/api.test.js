@@ -153,3 +153,64 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
   const applicantSession = await request(applicantAuth, '/api/session');
   assert.equal(applicantSession.data.employeeRows[0].serial, serial);
 });
+
+test('workspace and wallet sign-in remain available when the RPC is offline', async t => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'terminull-offline-rpc-'));
+  const portProbe = http.createServer();
+  await new Promise(resolve => portProbe.listen(0, '127.0.0.1', resolve));
+  const port = portProbe.address().port;
+  await new Promise(resolve => portProbe.close(resolve));
+  const process = spawn(global.process.execPath, ['server.js'], {
+    cwd:root,
+    env:{
+      ...global.process.env,
+      PORT:String(port),
+      RPC_URL:'http://127.0.0.1:1',
+      DATA_DIR:directory,
+      SESSION_SECRET:'test-only-session-secret'
+    },
+    stdio:'ignore'
+  });
+  t.after(async () => {
+    if (process.exitCode === null && process.signalCode === null) {
+      process.kill('SIGTERM');
+      await new Promise(resolve => process.once('exit', resolve));
+    }
+    fs.rmSync(directory, { recursive:true, force:true });
+  });
+
+  const base = `http://127.0.0.1:${port}`;
+  let response;
+  for (let attempt=0; attempt<100; attempt++) {
+    try {
+      response = await fetch(`${base}/app`);
+      if (response.ok) break;
+    } catch {}
+    if (process.exitCode !== null) break;
+    await wait(100);
+  }
+  assert.equal(response?.status, 200, 'workspace should load without a chain RPC');
+
+  const signer = ethers.Wallet.createRandom();
+  const challengeResponse = await fetch(`${base}/api/auth/challenge`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ wallet:signer.address })
+  });
+  assert.equal(challengeResponse.status, 200);
+  const { message } = await challengeResponse.json();
+  const verifyResponse = await fetch(`${base}/api/auth/verify`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ wallet:signer.address, signature:await signer.signMessage(message) })
+  });
+  assert.equal(verifyResponse.status, 200);
+  const { token } = await verifyResponse.json();
+  assert.ok(token);
+  const registerResponse = await fetch(`${base}/api/org/register`, {
+    method:'POST',
+    headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+    body:JSON.stringify({ name:'Offline RPC Test Company' })
+  });
+  assert.equal(registerResponse.status, 201);
+
+  const healthResponse = await fetch(`${base}/api/health`);
+  assert.equal(healthResponse.status, 503);
+});

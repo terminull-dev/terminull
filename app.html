@@ -82,7 +82,6 @@
     let context = null;
     let activeTab = 'overview';
     let contracts = null;
-    let networkReady = Promise.resolve();
     let walletListenersInstalled = false;
 
     function escapeHtml(value) {
@@ -182,8 +181,6 @@
     async function connectWallet() {
       clearNotice();
       try {
-        await networkReady;
-        if (!USDT_ADDRESS) throw new Error('Network configuration is unavailable.');
         if (!window.ethereum) throw new Error('No injected EVM wallet was found. Install or enable a wallet such as MetaMask.');
         await window.ethereum.request({ method:'eth_requestAccounts' });
         await ensureNetwork();
@@ -217,13 +214,13 @@
       } catch (error) {
         showNotice(error.message || 'Wallet connection failed.', 'error');
       }
+    }
 
-      function installWalletListeners() {
-        if (walletListenersInstalled || !window.ethereum?.on) return;
-        window.ethereum.on('accountsChanged', () => signOut('Wallet account changed. Sign in again.'));
-        window.ethereum.on('chainChanged', () => signOut('Network changed. Reconnect on chain 448000.'));
-        walletListenersInstalled = true;
-      }
+    function installWalletListeners() {
+      if (walletListenersInstalled || !window.ethereum?.on) return;
+      window.ethereum.on('accountsChanged', () => signOut('Wallet account changed. Sign in again.'));
+      window.ethereum.on('chainChanged', () => signOut('Network changed. Reconnect on chain 448000.'));
+      walletListenersInstalled = true;
     }
 
     function signOut(message = '') {
@@ -368,14 +365,14 @@
         api(`/api/org/${encodeURIComponent(serial)}/suppliers`),
         api(`/api/org/${encodeURIComponent(serial)}/invoices`),
         api(`/api/org/${encodeURIComponent(serial)}/activity`),
-        walletUsdtBalance(),
+        activeTab === 'overview' ? walletUsdtBalance().catch(() => null) : Promise.resolve(null),
         api(`/api/org/${encodeURIComponent(serial)}/join-requests`)
       ]);
       const content = document.getElementById('content');
       if (activeTab === 'overview') {
         content.innerHTML = `
           <div class="grid">
-            <article class="card"><div class="small muted">USDT in connected wallet</div><h2>${escapeHtml(ethers.formatUnits(balance,18))} USDT</h2><p class="small muted">On-chain wallet balance; not a company ledger balance.</p></article>
+            <article class="card"><div class="small muted">USDT in connected wallet</div><h2>${balance === null ? 'Unavailable' : `${escapeHtml(ethers.formatUnits(balance,18))} USDT`}</h2><p class="small muted">${balance === null ? 'The chain RPC or token contract is unavailable.' : 'On-chain wallet balance; not a company ledger balance.'}</p></article>
             <article class="card"><div class="small muted">Company serial</div><h2 class="mono">${escapeHtml(org.serial)}</h2><p>${escapeHtml(org.name)}</p></article>
             <article class="card"><div class="small muted">Confirmed company transactions</div><h2>${activity.length}</h2><p class="small muted">Only receipts confirmed by the configured RPC are included.</p></article>
           </div>
@@ -833,25 +830,26 @@
       } catch (error) { showNotice(error.message, 'error'); }
     }
 
-    window.addEventListener('DOMContentLoaded', async () => {
-      networkReady = (async () => {
-        try {
-          const health = await fetch('/api/health').then(async response => {
+    async function loadNetworkConfig() {
+      try {
+        const health = await fetch('/api/health').then(async response => {
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || 'Network configuration unavailable.');
           return result;
-          });
-          USDT_ADDRESS = ethers.getAddress(health.usdt);
-          POOL_ADDRESS = ethers.getAddress(health.pool);
-          VERIFIER_ADDRESS = ethers.getAddress(health.verifier);
-          document.getElementById('usdtAddressDisplay').textContent = `${USDT_ADDRESS} · ${health.decimals} decimals`;
-          document.getElementById('networkStatus').textContent = `Chain ${health.chainId} · USDT ${health.decimals}d`;
-        } catch (error) {
-          document.getElementById('networkStatus').textContent = 'Network unavailable';
-          showNotice(error.message, 'error');
-        }
-      })();
-      await networkReady;
+        });
+        USDT_ADDRESS = ethers.getAddress(health.usdt);
+        POOL_ADDRESS = ethers.getAddress(health.pool);
+        VERIFIER_ADDRESS = ethers.getAddress(health.verifier);
+        document.getElementById('usdtAddressDisplay').textContent = `${USDT_ADDRESS} · ${health.decimals} decimals`;
+        document.getElementById('networkStatus').textContent = `Chain ${health.chainId} · USDT ${health.decimals}d`;
+      } catch (error) {
+        document.getElementById('networkStatus').textContent = 'Network unavailable';
+        showNotice(`Chain configuration unavailable: ${error.message} Wallet sign-in is still available; on-chain actions need a working RPC.`, 'error');
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      loadNetworkConfig();
       if (authToken && window.ethereum) {
         try {
           const accounts = await window.ethereum.request({ method:'eth_accounts' });
@@ -863,7 +861,7 @@
             await loadSession();
             installWalletListeners();
           } else renderSignedOut();
-        } catch { signOut(); }
+        } catch (error) { signOut(`Could not restore wallet session: ${error.message || 'sign in again.'}`); }
       } else renderSignedOut();
     });
   </script>

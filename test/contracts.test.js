@@ -34,4 +34,10 @@ test('dashboard inline JavaScript parses', () => {
     .filter(script => script.trim());
   assert.equal(scripts.length, 1);
   assert.doesNotThrow(() => new (require('node:vm').Script)(scripts[0]));
+
+  const connectWallet = scripts[0].match(/async function connectWallet\(\) \{([\s\S]*?)\n    \}/);
+  assert.ok(connectWallet);
+  assert.doesNotMatch(connectWallet[1], /networkReady|USDT_ADDRESS/);
+  assert.match(scripts[0], /\n    function installWalletListeners\(\)/);
+  assert.match(scripts[0], /Chain configuration unavailable:.*Wallet sign-in is still available/s);
 });

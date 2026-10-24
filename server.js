@@ -146,16 +146,26 @@ app.get('/public/ethers.umd.min.js', (_req, res) => res.sendFile('node_modules/e
 app.use('/public', express.static(path.join(__dirname, 'public')));
 
 app.get('/api/health', asyncRoute(async (_req, res) => {
-  const network = await provider.getNetwork();
-  const [code, poolCode, verifierCode] = await Promise.all([
-    provider.getCode(USDT),
-    provider.getCode(ZK_POOL),
-    provider.getCode(GROTH_VERIFIER)
-  ]);
+  let network;
+  let code;
+  let poolCode;
+  let verifierCode;
+  let decimals;
+  try {
+    network = await provider.getNetwork();
+    [code, poolCode, verifierCode] = await Promise.all([
+      provider.getCode(USDT),
+      provider.getCode(ZK_POOL),
+      provider.getCode(GROTH_VERIFIER)
+    ]);
+    decimals = await new ethers.Contract(USDT, TOKEN_INTERFACE, provider).decimals();
+  } catch (error) {
+    console.error('RPC health check failed:', error.message);
+    return res.status(503).json({ error:'Configured RPC is unavailable. Wallet sign-in and non-chain UI remain available.' });
+  }
   if (Number(network.chainId) !== CHAIN_ID) fail(503, `RPC chain mismatch: expected ${CHAIN_ID}, received ${network.chainId}.`);
   if (code === '0x') fail(503, 'Configured USDT contract has no bytecode on the configured network.');
   if (poolCode === '0x' || verifierCode === '0x') fail(503, 'Configured pool or verifier has no bytecode on the configured network.');
-  const decimals = await new ethers.Contract(USDT, TOKEN_INTERFACE, provider).decimals();
   if (Number(decimals) !== 18) fail(503, 'Configured USDT contract does not report 18 decimals.');
   res.json({
     chainId: Number(network.chainId),
@@ -890,9 +900,7 @@ app.use((error, _req, res, _next) => {
   res.status(error.status || 500).json({ error: error.status ? error.message : 'Internal server error.' });
 });
 
-initializeDatabase().then(async () => {
-  const network = await provider.getNetwork();
-  if (Number(network.chainId) !== CHAIN_ID) throw new Error(`RPC chain mismatch: expected ${CHAIN_ID}, received ${network.chainId}.`);
+initializeDatabase().then(() => {
   compileContracts();
   app.listen(PORT, () => console.log(`Terminull server ready on ${PORT}; chain ${CHAIN_ID}.`));
 }).catch(error => {

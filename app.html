@@ -1,1040 +1,871 @@
-<!DOCTYPE html>
-<html lang="en" class="dark">
+<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Terminull | Enterprise Private Banking & Shielded Settlement</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: { 300: '#c4ccd4', 400: '#aab4be', 500: '#87939e', 600: '#687681', 700: '#53606b' }
-          }
-        }
-      }
-    }
-  </script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Terminull | Company treasury</title>
+  <script src="/public/ethers.umd.min.js"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    body {
-      font-family: 'Inter', sans-serif;
-      background: radial-gradient(circle at 50% 0%, #25282a 0%, #1b1d1f 50%, #141617 100%);
-      background-attachment: fixed;
-    }
-    .glass-slate-panel {
-      background: rgba(29, 32, 34, 0.94);
-      backdrop-filter: blur(25px);
-      -webkit-backdrop-filter: blur(25px);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45), inset 0 1px 1px rgba(255, 255, 255, 0.08);
-    }
-    .glass-slate-card {
-      background: rgba(42, 45, 47, 0.76);
-      backdrop-filter: blur(15px);
-      -webkit-backdrop-filter: blur(15px);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-    }
-    .glass-slate-card:hover {
-      border-color: rgba(176, 185, 193, 0.22);
-      box-shadow: 0 10px 35px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.08);
-    }
-    header { background-color: rgba(24, 26, 28, 0.96) !important; }
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-track { background: #141617; }
-    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-    ::-webkit-scrollbar-thumb:hover { background: #77838e; }
+    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#111827; color:#e5e7eb; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:radial-gradient(circle at 25% 0,#293146,#111827 52%); min-height:100vh; }
+    header { position:sticky;top:0;z-index:2;background:#111827ed;border-bottom:1px solid #374151;padding:1rem clamp(1rem,4vw,3rem);display:flex;align-items:center;justify-content:space-between;gap:1rem; }
+    main { max-width:1200px;margin:0 auto;padding:2rem clamp(1rem,4vw,3rem); }
+    h1,h2,h3,p { margin-top:0; } h1 { font-size:1.7rem; } h2 { font-size:1.2rem; } h3 { font-size:1rem; }
+    button,a.button { border:1px solid #53647c;background:#263449;color:#f9fafb;border-radius:.6rem;padding:.65rem .9rem;font-weight:650;text-decoration:none;cursor:pointer; }
+    button:hover,a.button:hover { background:#354761; } button:disabled { opacity:.45;cursor:not-allowed; }
+    input,select,textarea { width:100%;border:1px solid #4b5563;border-radius:.5rem;background:#111827;color:#f9fafb;padding:.65rem .75rem;font:inherit; }
+    label { display:block;font-size:.84rem;color:#cbd5e1;margin:.8rem 0 .35rem; }
+    .row { display:flex;align-items:center;gap:.7rem;flex-wrap:wrap; } .row>* { flex:1; }
+    .grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem; }
+    .card { border:1px solid #374151;background:#1f293be8;border-radius:.9rem;padding:1.1rem;margin:1rem 0; }
+    .muted { color:#9ca3af; } .small { font-size:.82rem; } .mono { font-family:ui-monospace,SFMono-Regular,monospace;overflow-wrap:anywhere; }
+    .notice { border:1px solid #52627a;background:#1f2c3f;border-radius:.7rem;padding:.8rem 1rem;margin:1rem 0;white-space:pre-wrap; }
+    .notice.error { border-color:#b91c1c;background:#3b1d24; } .notice.success { border-color:#15803d;background:#123522; }
+    .hidden { display:none!important; } .tabs { display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0; } .tabs button[aria-current="page"] { background:#4c1d95;border-color:#a78bfa; }
+    table { width:100%;border-collapse:collapse;font-size:.88rem; } th,td { text-align:left;padding:.65rem;border-bottom:1px solid #374151;vertical-align:top; } th { color:#cbd5e1; }
+    .table-wrap { overflow:auto; } code { color:#c4b5fd; } .badge { border:1px solid #58677c;border-radius:99px;padding:.2rem .55rem;font-size:.75rem;color:#cbd5e1; }
+    .danger { color:#fecaca; } .success-text { color:#86efac; } .actions { display:flex;gap:.4rem;flex-wrap:wrap; } .actions button { padding:.4rem .6rem;font-size:.8rem; }
+    .form-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.25rem 1rem; }
+    footer { max-width:1200px;margin:0 auto;padding:1rem clamp(1rem,4vw,3rem) 2rem;color:#9ca3af;font-size:.8rem; }
   </style>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 </head>
-<body class="text-slate-100 min-h-screen flex flex-col justify-between selection:bg-purple-600 selection:text-white antialiased overflow-x-hidden">
-
-  <!-- TOP HEADER -->
-  <header class="border-b border-white/10 bg-slate-950/85 backdrop-blur-2xl sticky top-0 z-40 shadow-xl">
-    <div class="max-w-[1600px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between">
-      <div class="flex items-center space-x-6">
-        <a href="app.html" class="flex items-center space-x-3 group">
-          <span class="font-extrabold tracking-tight text-white text-lg sm:text-xl">TermiNull Dashboard</span>
-        </a>
-        <div class="hidden md:flex items-center space-x-2 bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded-full font-mono text-[11px] text-emerald-300">
-          <span id="nodeStatusDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-md shadow-emerald-400/50"></span>
-          <span id="headerNodeStatus">NullNet PoA Live</span>
-        </div>
-      </div>
-
-      <div class="flex items-center space-x-3 font-mono text-xs">
-        <div class="hidden lg:flex items-center space-x-3 bg-slate-900/80 border border-white/10 py-1.5 px-3 rounded-xl">
-          <div class="flex items-center space-x-1.5">
-            <span class="w-2 h-2 rounded-full bg-indigo-400"></span>
-            <span class="text-slate-400 text-[10px]">USDC:</span>
-            <span id="headerUsdcBal" class="text-xs font-bold text-white font-mono">$35,000</span>
-          </div>
-          <div class="h-3 w-px bg-white/20"></div>
-          <div class="flex items-center space-x-1.5">
-            <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span class="text-slate-400 text-[10px]">USDT (18d):</span>
-            <span id="headerUsdtBal" class="text-xs font-bold text-emerald-300 font-mono">27,500</span>
-          </div>
-          <div class="h-3 w-px bg-white/20"></div>
-          <div class="flex items-center space-x-1.5">
-            <span class="w-2 h-2 rounded-full bg-purple-400"></span>
-            <span class="text-slate-400 text-[10px]">LUN:</span>
-            <span id="headerLunBal" class="text-xs font-bold text-purple-300 font-mono">2,000</span>
-          </div>
-        </div>
-
-        <button onclick="switchTab('deposit')" class="hidden sm:flex items-center space-x-2 bg-purple-600/20 hover:bg-purple-600/40 text-purple-300 border border-purple-500/40 py-2 px-3.5 rounded-xl transition cursor-pointer shadow-lg">
-          <span>🔒 Deposit / Shield</span>
-        </button>
-
-        <button id="walletBtn" onclick="handleWalletAction()" class="bg-gradient-to-r from-brand-600 via-purple-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-bold py-2 px-4 rounded-xl transition duration-200 shadow-xl border border-white/20 flex items-center space-x-2 cursor-pointer">
-          <span id="walletDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span id="walletAddress">0x71C...1928</span>
-        </button>
-      </div>
+<body>
+  <header>
+    <div><strong>Terminull</strong><div class="small muted">Company treasury · Lunul PoA</div></div>
+    <div class="row" style="flex:0 1 auto">
+      <span id="networkStatus" class="badge">Network not checked</span>
+      <button id="walletButton" onclick="connectWallet()">Connect wallet</button>
     </div>
   </header>
-
-  <!-- MAIN APP CONTAINER -->
-  <main class="max-w-[1600px] mx-auto px-4 sm:px-8 py-8 flex-1 w-full space-y-8">
-
-    <!-- HERO BANNER -->
-    <div class="relative overflow-hidden rounded-3xl glass-slate-panel p-6 sm:p-8 shadow-2xl">
-      <div class="absolute -top-24 -right-24 w-96 h-96 bg-brand-600/20 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="absolute -bottom-24 -left-24 w-96 h-96 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none"></div>
-
-      <div class="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-        <div class="space-y-3 max-w-2xl">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="text-[10px] font-bold text-brand-300 uppercase font-mono tracking-widest bg-brand-500/20 border border-brand-500/40 px-3 py-1 rounded-full">
-              Enterprise Privacy Ledger & Settlement
-            </span>
-            <span id="userRoleBadge" class="text-[10px] font-bold text-emerald-300 uppercase font-mono tracking-widest bg-emerald-950/80 border border-emerald-500/40 px-3 py-1 rounded-full">
-              Role: Master Signer (Zug AG)
-            </span>
-          </div>
-
-          <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight drop-shadow-md">
-            Private Banking & Shielded Vaults
-          </h1>
-          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed font-sans">
-            Manage multi-tier privacy balances (Public Ledger, Shielded Amounts, Zero-Knowledge Private Pools) backed by Groth16 (`0x39e145...73b0`) and ZKPool (`0xC82681...2743B`).
-          </p>
-
-          <div id="orgSerialBox" class="mt-3 p-3.5 bg-slate-950/80 border border-white/10 rounded-2xl flex items-center justify-between font-mono text-xs max-w-xl shadow-inner">
-            <div class="flex items-center space-x-3">
-              <span class="text-lg">🔐</span>
-              <div>
-                <div class="text-[9px] text-slate-400 uppercase tracking-wider">Organisation Serial Code</div>
-                <div id="orgSerialDisplay" class="font-bold text-brand-300 text-xs">TERM-ORG-DEMO-2026</div>
-              </div>
-            </div>
-            <button id="copyOrgCodeBtn" onclick="copyOrgCode()" class="text-[10px] bg-brand-600/20 hover:bg-brand-600/40 text-brand-300 border border-brand-500/40 px-3 py-1 rounded-xl transition cursor-pointer">
-              Copy Key
-            </button>
-          </div>
-        </div>
-
-        <!-- BALANCE STAT CARDS WITH PRIVACY TIERS -->
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 w-full lg:w-auto">
-          <div class="glass-slate-card rounded-2xl p-3.5 space-y-1 border border-white/10">
-            <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 uppercase">
-              <span>USDT (18-Dec)</span>
-              <span class="text-emerald-400">Tier 1-3</span>
-            </div>
-            <div id="usdtBalanceDisplay" class="text-sm font-bold text-emerald-300 font-mono tracking-tight">27,500 USDT</div>
-            <div class="text-[9px] text-emerald-400">CA: 0x7ec3...C29b</div>
-          </div>
-
-          <div class="glass-slate-card rounded-2xl p-3.5 space-y-1 border border-white/10">
-            <div class="flex items-center justify-between text-[10px] font-mono text-slate-400 uppercase">
-              <span>LUN Gas & Token</span>
-              <span class="text-purple-400">Native</span>
-            </div>
-            <div id="lunBalanceDisplay" class="text-sm font-bold text-purple-300 font-mono tracking-tight">2,000 LUN</div>
-            <div class="text-[9px] text-purple-400">NullNet PoA</div>
-          </div>
-
-          <div class="glass-slate-card rounded-2xl p-3.5 space-y-1 border border-white/10 col-span-2 sm:col-span-1">
-            <div class="text-[10px] font-mono text-slate-400 uppercase">ZK Shielded Total</div>
-            <div id="zkBalanceDisplay" class="text-sm font-bold text-indigo-300 font-mono tracking-tight">2,750 ZK</div>
-            <div class="text-[9px] text-indigo-400">Tier 3 Private Pool</div>
-          </div>
-        </div>
+  <main>
+    <h1>Company treasury</h1>
+    <p class="muted">Wallet-based access to company records and confirmed on-chain activity. Shielded-pool actions are unavailable until proof verification and note recovery are configured.</p>
+    <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
+    <section id="signedOut" class="card">
+      <h2>Connect a wallet to continue</h2>
+      <p class="muted">Sign a one-time message to identify this wallet. Your private key stays in your wallet provider.</p>
+      <button onclick="connectWallet()">Connect and sign in</button>
+    </section>
+    <section id="workspace" class="hidden">
+      <div class="card row">
+        <div><div class="small muted">Connected wallet</div><div id="connectedWallet" class="mono"></div></div>
+        <div><label for="contextSelect">Workspace</label><select id="contextSelect" onchange="selectContext(this.value)"></select></div>
       </div>
-    </div>
-
-    <!-- MAIN CONTENT GRID -->
-    <div class="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
-
-      <!-- LEFT SIDEBAR NAVIGATION -->
-      <aside class="lg:col-span-1 space-y-4 font-mono text-xs">
-        <div class="glass-slate-panel rounded-2xl p-3 space-y-1">
-          <div class="text-[10px] text-slate-400 uppercase px-3 py-2 font-semibold tracking-wider border-b border-white/5 pb-2 mb-1">
-            <span>Navigation Hub</span>
-          </div>
-
-          <button onclick="switchTab('dashboard')" id="tab-dashboard" class="w-full text-left px-3.5 py-2.5 rounded-xl bg-slate-700/70 text-slate-100 font-semibold transition flex items-center cursor-pointer border border-white/10">
-            <span>Dashboard</span>
-          </button>
-
-          <button onclick="switchTab('deposit')" id="tab-deposit" class="w-full text-left px-3.5 py-2.5 rounded-xl text-purple-300 hover:bg-white/10 hover:text-white transition flex items-center cursor-pointer font-bold bg-purple-950/30 border border-purple-500/30">
-            <span>🔒 Deposit / Shield</span>
-          </button>
-
-          <button onclick="switchTab('payroll')" id="tab-payroll" class="w-full text-left px-3.5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 hover:text-white transition flex items-center cursor-pointer">
-            <span>Bulk Payroll Hub</span>
-          </button>
-
-          <button onclick="switchTab('escrow')" id="tab-escrow" class="w-full text-left px-3.5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 hover:text-white transition flex items-center cursor-pointer">
-            <span>Escrow Vaults</span>
-          </button>
-
-          <button onclick="switchTab('dao')" id="tab-dao" class="w-full text-left px-3.5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 hover:text-white transition flex items-center cursor-pointer">
-            <span>DAO Governance</span>
-          </button>
-
-          <button onclick="switchTab('reports')" id="tab-reports" class="w-full text-left px-3.5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 hover:text-white transition flex items-center cursor-pointer font-bold text-amber-300">
-            <span>📊 Reporting & Audit</span>
-          </button>
-
-          <button onclick="switchTab('accounts')" id="tab-accounts" class="w-full text-left px-3.5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 hover:text-white transition flex items-center cursor-pointer">
-            <span>Accounts & Ledgers</span>
-          </button>
-
-          <button onclick="switchTab('roster')" id="tab-roster" class="w-full text-left px-3.5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 hover:text-white transition flex items-center cursor-pointer">
-            <span>Employee Roster</span>
-          </button>
-
-          <button onclick="switchTab('boltons')" id="tab-boltons" class="w-full text-left px-3.5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 hover:text-white transition flex items-center cursor-pointer">
-            <span>Bolt-On System</span>
-          </button>
-        </div>
-      </aside>
-
-      <!-- VIEWPORT CONTENT AREA -->
-      <section class="lg:col-span-4 glass-slate-panel rounded-3xl p-6 sm:p-8 shadow-2xl min-h-[650px] relative font-mono text-xs">
-
-        <!-- VIEW 1: DASHBOARD -->
-        <div id="view-dashboard" class="space-y-8">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
-            <div>
-              <h2 class="text-2xl font-extrabold text-white tracking-tight flex items-center space-x-2.5">
-                <span>Enterprise Balance Terminals & Privacy Tiers</span>
-              </h2>
-              <p class="text-xs text-slate-300 font-sans mt-1 leading-relaxed">
-                Clear multi-level visibility for USDT (18-Dec) and LUN native tokens across Public, Shielded, and ZK pools.
-              </p>
-            </div>
-            <div class="flex items-center space-x-3">
-              <button onclick="switchTab('deposit')" class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-2.5 px-5 rounded-xl transition cursor-pointer shadow-xl border border-white/20">
-                <span>🔒 Open Deposit & Shield Terminal</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- SMART CONTRACT CONTRACTS STATUS BAR -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="p-3.5 bg-slate-950/80 border border-purple-500/30 rounded-2xl flex items-center justify-between">
-              <div>
-                <div class="text-[9px] text-purple-400 uppercase tracking-wider">ZK Shielded Pool Contract</div>
-                <code class="text-xs text-white font-bold select-all">0xC82681a28Bf26f6beb6b48442Ba9887a2872743B</code>
-              </div>
-              <span class="bg-purple-500/20 text-purple-300 px-2 py-1 rounded text-[10px]">Active Pool</span>
-            </div>
-
-            <div class="p-3.5 bg-slate-950/80 border border-emerald-500/30 rounded-2xl flex items-center justify-between">
-              <div>
-                <div class="text-[9px] text-emerald-400 uppercase tracking-wider">Groth16 Verifier Contract</div>
-                <code class="text-xs text-emerald-300 font-bold select-all">0x39e1451944d2F71F586850f81c12E9A8DA5A73b0</code>
-              </div>
-              <span class="bg-emerald-500/20 text-emerald-300 px-2 py-1 rounded text-[10px]">BN254 Pairing</span>
-            </div>
-          </div>
-
-          <!-- 3 PRIVACY TIERS BALANCE TERMINALS -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            <!-- TIER 1: PUBLIC LEDGER -->
-            <div class="glass-slate-card rounded-2xl p-6 space-y-4 border border-slate-500/40 flex flex-col justify-between">
-              <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                  <span class="text-[10px] bg-slate-700 text-slate-300 border border-slate-600 px-2.5 py-0.5 rounded-full font-bold">TIER 1: PUBLIC</span>
-                  <span class="text-slate-400 font-mono text-[10px]">Standard RPC</span>
-                </div>
-                <div>
-                  <h3 class="font-bold text-white text-base">Public Ledger Terminal</h3>
-                  <div class="text-[10px] text-slate-400 font-sans mt-0.5">Transparent on-chain balances & addresses</div>
-                </div>
-                <div class="space-y-2 pt-3 border-t border-white/10 font-mono">
-                  <div class="flex justify-between items-center bg-slate-950/60 p-2.5 rounded-xl">
-                    <span class="text-slate-400">USDT (18d):</span>
-                    <strong id="termTier1Usdt" class="text-emerald-300">20,000.00</strong>
-                  </div>
-                  <div class="flex justify-between items-center bg-slate-950/60 p-2.5 rounded-xl">
-                    <span class="text-slate-400">LUN Token:</span>
-                    <strong id="termTier1Lun" class="text-purple-300">1,250.00</strong>
-                  </div>
-                </div>
-              </div>
-              <button onclick="switchTab('deposit')" class="w-full bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 py-2.5 rounded-xl font-bold transition cursor-pointer">
-                Manage Public Funds
-              </button>
-            </div>
-
-            <!-- TIER 2: SHIELDED AMOUNTS -->
-            <div class="glass-slate-card rounded-2xl p-6 space-y-4 border border-brand-500/40 flex flex-col justify-between">
-              <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                  <span class="text-[10px] bg-brand-600/30 text-brand-300 border border-brand-500/40 px-2.5 py-0.5 rounded-full font-bold">TIER 2: SHIELDED</span>
-                  <span class="text-brand-400 font-mono text-[10px]">Amount Hidden</span>
-                </div>
-                <div>
-                  <h3 class="font-bold text-white text-base">Shielded Amounts Pool</h3>
-                  <div class="text-[10px] text-slate-400 font-sans mt-0.5">Sender/Receiver visible, values encrypted</div>
-                </div>
-                <div class="space-y-2 pt-3 border-t border-white/10 font-mono">
-                  <div class="flex justify-between items-center bg-slate-950/60 p-2.5 rounded-xl">
-                    <span class="text-slate-400">USDT (Shielded):</span>
-                    <strong id="termTier2Usdt" class="text-emerald-300">5,000.00</strong>
-                  </div>
-                  <div class="flex justify-between items-center bg-slate-950/60 p-2.5 rounded-xl">
-                    <span class="text-slate-400">LUN (Shielded):</span>
-                    <strong id="termTier2Lun" class="text-purple-300">500.00</strong>
-                  </div>
-                </div>
-              </div>
-              <button onclick="switchTab('deposit')" class="w-full bg-brand-700/30 hover:bg-brand-600/40 text-brand-300 border border-brand-500/40 py-2.5 rounded-xl font-bold transition cursor-pointer">
-                Shield Amounts (Tier 2)
-              </button>
-            </div>
-
-            <!-- TIER 3: FULL ZK SHIELDED -->
-            <div class="glass-slate-card rounded-2xl p-6 space-y-4 border border-purple-500/40 flex flex-col justify-between">
-              <div class="space-y-3">
-                <div class="flex items-center justify-between">
-                  <span class="text-[10px] bg-purple-600/30 text-purple-300 border border-purple-500/40 px-2.5 py-0.5 rounded-full font-bold">TIER 3: ZK PRIVATE</span>
-                  <span class="text-purple-400 font-mono text-[10px]">Groth16 Verified</span>
-                </div>
-                <div>
-                  <h3 class="font-bold text-white text-base">Full ZK Shielded Pool</h3>
-                  <div class="text-[10px] text-slate-400 font-sans mt-0.5">Complete anonymity via 0x39e145...73b0</div>
-                </div>
-                <div class="space-y-2 pt-3 border-t border-white/10 font-mono">
-                  <div class="flex justify-between items-center bg-slate-950/60 p-2.5 rounded-xl">
-                    <span class="text-slate-400">USDT (ZK):</span>
-                    <strong id="termTier3Usdt" class="text-emerald-300">2,500.00</strong>
-                  </div>
-                  <div class="flex justify-between items-center bg-slate-950/60 p-2.5 rounded-xl">
-                    <span class="text-slate-400">LUN (ZK):</span>
-                    <strong id="termTier3Lun" class="text-purple-300">250.00</strong>
-                  </div>
-                </div>
-              </div>
-              <button onclick="switchTab('deposit')" class="w-full bg-purple-700/30 hover:bg-purple-600/40 text-purple-300 border border-purple-500/40 py-2.5 rounded-xl font-bold transition cursor-pointer">
-                Enter ZK Pool (Tier 3)
-              </button>
-            </div>
-
-          </div>
-
-          <!-- RECENT ACTIVITY LOG -->
-          <div class="glass-slate-card rounded-2xl p-6 space-y-4 border border-white/10">
-            <h3 class="font-bold text-white text-base">Recent Shielding & Ledger Activity</h3>
-            <div class="overflow-x-auto">
-              <table class="w-full text-left border-collapse">
-                <thead>
-                  <tr class="border-b border-white/10 text-slate-400 text-[11px]">
-                    <th class="py-3 px-4">Timestamp</th>
-                    <th class="py-3 px-4">Asset</th>
-                    <th class="py-3 px-4">Privacy Tier</th>
-                    <th class="py-3 px-4">Action Type</th>
-                    <th class="py-3 px-4">Amount</th>
-                    <th class="py-3 px-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody id="dashboardActivityTable" class="divide-y divide-white/5 text-slate-300">
-                  <!-- JS Populated -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <!-- VIEW 2: DEPOSIT / SHIELD -->
-        <div id="view-deposit" class="hidden space-y-8">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
-            <div>
-              <h2 class="text-2xl font-extrabold text-white tracking-tight flex items-center space-x-2.5">
-                <span>Deposit & Privacy Shielding Hub</span>
-              </h2>
-              <p class="text-xs text-slate-300 font-sans mt-1 leading-relaxed">
-                Interacting with ZKPool <code class="text-purple-300 select-all">0xC82681a28Bf26f6beb6b48442Ba9887a2872743B</code> & Groth16 Verifier <code class="text-emerald-300 select-all">0x39e1451944d2F71F586850f81c12E9A8DA5A73b0</code>.
-              </p>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div class="glass-slate-card rounded-2xl p-6 space-y-6 border border-purple-500/30">
-              <h3 class="font-bold text-white text-base flex items-center space-x-2">
-                <span>🔒 Groth16 Shield Deposit Wizard</span>
-              </h3>
-
-              <div class="space-y-4">
-                <div>
-                  <label class="text-slate-300 block mb-1">Select Asset</label>
-                  <select id="shieldAssetSel" class="w-full bg-slate-950/80 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-purple-500 font-mono">
-                    <option value="USDT">USDT (18 Decimals — 0x7ec3...C29b)</option>
-                    <option value="LUN">LUN (Native Gas & Token)</option>
-                    <option value="USDC">USDC (Standard Escrow)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label class="text-slate-300 block mb-1">Amount to Deposit / Shield</label>
-                  <input type="number" id="shieldAmountInput" step="0.000001" placeholder="0.00" class="w-full bg-slate-950/80 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-purple-500 font-mono">
-                </div>
-
-                <div>
-                  <label class="text-slate-300 block mb-2">Select Privacy Tier</label>
-                  <div class="grid grid-cols-3 gap-3">
-                    <button type="button" onclick="setShieldTier(1)" id="tierBtn1" class="p-3 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:border-slate-500 transition text-left cursor-pointer">
-                      <div class="font-bold text-white">1. None</div>
-                      <div class="text-[9px] text-slate-400 mt-0.5">Public Ledger</div>
-                    </button>
-                    <button type="button" onclick="setShieldTier(2)" id="tierBtn2" class="p-3 rounded-xl bg-purple-950/40 border border-brand-500 text-brand-300 transition text-left cursor-pointer">
-                      <div class="font-bold text-white">2. Shielded</div>
-                      <div class="text-[9px] text-brand-300 mt-0.5">Amounts Hidden</div>
-                    </button>
-                    <button type="button" onclick="setShieldTier(3)" id="tierBtn3" class="p-3 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:border-slate-500 transition text-left cursor-pointer">
-                      <div class="font-bold text-white">3. ZK Private</div>
-                      <div class="text-[9px] text-slate-400 mt-0.5">Groth16 Proof</div>
-                    </button>
-                  </div>
-                  <input type="hidden" id="selectedTierVal" value="2">
-                </div>
-
-                <div class="p-4 bg-slate-950/80 rounded-xl border border-white/5 space-y-1 text-[11px] text-slate-300 font-sans">
-                  <div class="font-bold text-white font-mono">Groth16 Verification Target:</div>
-                  <code class="text-emerald-300 select-all block text-[10px]">0x39e1451944d2F71F586850f81c12E9A8DA5A73b0</code>
-                </div>
-
-                <button onclick="executeDepositAndShield()" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl transition shadow-xl border border-white/20 cursor-pointer">
-                  Execute ZK Shield & Verify Proof
-                </button>
-              </div>
-            </div>
-
-            <div class="space-y-6">
-              <div class="glass-slate-card rounded-2xl p-6 space-y-4 border border-white/10">
-                <h3 class="font-bold text-white text-base">Clear Balance Terminals</h3>
-                <div class="space-y-3">
-                  <div class="p-3.5 bg-slate-950/80 rounded-xl border border-white/5 flex items-center justify-between">
-                    <div>
-                      <div class="text-[10px] text-slate-400 uppercase">USDT (18-Dec) Balances</div>
-                      <div class="text-xs text-slate-300 mt-0.5">CA: 0x7ec3...C29b</div>
-                    </div>
-                    <div class="text-right font-mono">
-                      <div id="hubUsdtPublic" class="text-white">Public: 20,000.00</div>
-                      <div id="hubUsdtShielded" class="text-brand-300">Shielded: 5,000.00</div>
-                      <div id="hubUsdtZk" class="text-purple-300">ZK: 2,500.00</div>
-                    </div>
-                  </div>
-
-                  <div class="p-3.5 bg-slate-950/80 rounded-xl border border-white/5 flex items-center justify-between">
-                    <div>
-                      <div class="text-[10px] text-slate-400 uppercase">LUN Token Balances</div>
-                      <div class="text-xs text-slate-300 mt-0.5">Native Gas & Utility</div>
-                    </div>
-                    <div class="text-right font-mono">
-                      <div id="hubLunPublic" class="text-white">Public: 1,250.00</div>
-                      <div id="hubLunShielded" class="text-brand-300">Shielded: 500.00</div>
-                      <div id="hubLunZk" class="text-purple-300">ZK: 250.00</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="glass-slate-card rounded-2xl p-6 space-y-4 border border-white/10">
-                <h3 class="font-bold text-white text-base">Deshield / Withdraw to Public</h3>
-                <p class="text-xs text-slate-300 font-sans leading-relaxed">
-                  Convert shielded or ZK private balances back to standard public ledger assets or withdraw to external Web3 wallets.
-                </p>
-                <div class="grid grid-cols-2 gap-3">
-                  <button onclick="openDeshieldModal('USDT')" class="bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 py-2.5 rounded-xl font-bold transition cursor-pointer">
-                    Deshield USDT
-                  </button>
-                  <button onclick="openDeshieldModal('LUN')" class="bg-slate-900 hover:bg-slate-800 text-purple-300 border border-purple-500/30 py-2.5 rounded-xl font-bold transition cursor-pointer">
-                    Deshield LUN
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- VIEW 3: BULK PAYROLL HUB -->
-        <div id="view-payroll" class="hidden space-y-8">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
-            <div>
-              <h2 class="text-2xl font-extrabold text-white tracking-tight">Bulk Payroll Engine</h2>
-              <p class="text-xs text-slate-300 font-sans mt-1">Multi-recipient batch disbursements for core engineering and contributor teams.</p>
-            </div>
-            <div class="flex items-center space-x-3">
-              <button onclick="openAddEmployeeModal()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 px-4 rounded-xl border border-white/10 transition cursor-pointer">
-                + Add Contributor
-              </button>
-              <button onclick="executeBatchPayroll()" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-2.5 px-6 rounded-xl transition cursor-pointer shadow-lg border border-white/20">
-                🚀 Disburse Bulk Payroll
-              </button>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="glass-slate-card rounded-2xl p-6 space-y-4 border border-white/10">
-              <div class="text-[10px] text-slate-400 uppercase font-mono">Disbursement Asset</div>
-              <select id="payrollAssetSel" class="w-full bg-slate-950/80 border border-white/10 rounded-xl px-4 py-3 text-white outline-none focus:border-emerald-500 font-mono">
-                <option value="USDT">USDT (18-Dec — 0x7ec3...C29b)</option>
-                <option value="USDC">USDC (Vault Balance)</option>
-                <option value="LUN">LUN (Native Reserve)</option>
-              </select>
-            </div>
-
-            <div class="glass-slate-card rounded-2xl p-6 space-y-2 border border-white/10">
-              <div class="text-[10px] text-slate-400 uppercase font-mono">Active Contributors</div>
-              <div id="payrollContributorCount" class="text-2xl font-bold text-white font-mono">3 Members</div>
-            </div>
-
-            <div class="glass-slate-card rounded-2xl p-6 space-y-2 border border-white/10">
-              <div class="text-[10px] text-slate-400 uppercase font-mono">Total Monthly Commit</div>
-              <div id="payrollTotalAmount" class="text-2xl font-bold text-emerald-300 font-mono">$16,500.00</div>
-            </div>
-          </div>
-
-          <div class="glass-slate-card rounded-2xl p-6 space-y-4 border border-white/10">
-            <h3 class="font-bold text-white text-base">Contributor Payroll Manifest</h3>
-            <div class="overflow-x-auto">
-              <table class="w-full text-left border-collapse">
-                <thead>
-                  <tr class="border-b border-white/10 text-slate-400 text-[11px]">
-                    <th class="py-3 px-4">Contributor Name</th>
-                    <th class="py-3 px-4">Role / Title</th>
-                    <th class="py-3 px-4">Destination Wallet</th>
-                    <th class="py-3 px-4">Monthly Allocation</th>
-                    <th class="py-3 px-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody id="payrollTableBody" class="divide-y divide-white/5 text-slate-300 font-mono">
-                  <!-- JS Populated -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <!-- VIEW 4: ESCROW VAULTS -->
-        <div id="view-escrow" class="hidden space-y-8">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
-            <div>
-              <h2 class="text-2xl font-extrabold text-white tracking-tight">Escrow & Milestone Vaults</h2>
-              <p class="text-xs text-slate-300 font-sans mt-1">Timelocked supplier deposits and programmatic contract vaults.</p>
-            </div>
-            <button onclick="openCreateVaultModal()" class="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-2.5 px-5 rounded-xl transition cursor-pointer shadow-lg border border-white/20">
-              + Create Timelocked Vault
-            </button>
-          </div>
-
-          <div id="escrowVaultsGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- JS Populated -->
-          </div>
-        </div>
-
-        <!-- VIEW 5: DAO GOVERNANCE -->
-        <div id="view-dao" class="hidden space-y-8">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
-            <div>
-              <h2 class="text-2xl font-extrabold text-white tracking-tight">DAO Governance & Proposal Rails</h2>
-              <p class="text-xs text-slate-300 font-sans mt-1">On-chain treasury containers, proposal voting, and multi-sig execution.</p>
-            </div>
-            <div class="flex space-x-3">
-              <button onclick="openConfigureDaoModal()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 px-4 rounded-xl border border-white/10 transition cursor-pointer">
-                ⚙️ Container Config
-              </button>
-              <button onclick="openCreateProposalModal()" class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-2.5 px-5 rounded-xl transition cursor-pointer shadow-lg border border-white/20">
-                + New TIP Proposal
-              </button>
-            </div>
-          </div>
-
-          <div id="daoContainerBox" class="glass-slate-card rounded-2xl p-6 space-y-4 border border-white/10"></div>
-
-          <div class="glass-slate-card rounded-2xl p-6 space-y-4 border border-white/10">
-            <h3 class="font-bold text-white text-base">Active Governance Proposals</h3>
-            <div id="daoProposalsList" class="space-y-4"></div>
-          </div>
-        </div>
-
-        <!-- VIEW 6: REPORTING & AUDIT -->
-        <div id="view-reports" class="hidden space-y-8">
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
-            <div>
-              <h2 class="text-2xl font-extrabold text-white tracking-tight">CPA Reporting & Statutory Tax Audit</h2>
-              <p class="text-xs text-slate-300 font-sans mt-1">Export transaction histories, calculate MwSt/VAT withholding liabilities, and view institutional audit logs.</p>
-            </div>
-            <button onclick="exportCpaReport()" class="bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white font-bold py-2.5 px-5 rounded-xl transition cursor-pointer shadow-lg border border-white/20">
-              📥 Export CPA Audit Package (.CSV)
-            </button>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="glass-slate-card rounded-2xl p-6 space-y-2 border border-white/10">
-              <div class="text-[10px] text-slate-400 uppercase font-mono">Entity Jurisdiction</div>
-              <div class="text-base font-bold text-white font-mono">Zug, Switzerland (CHE)</div>
-              <div class="text-[10px] text-slate-400">Reg ID: CHE-482.910.339</div>
-            </div>
-
-            <div class="glass-slate-card rounded-2xl p-6 space-y-2 border border-white/10">
-              <div class="text-[10px] text-slate-400 uppercase font-mono">Withholding Tax Rate</div>
-              <div class="text-base font-bold text-amber-300 font-mono">18.5% Statutory</div>
-              <div class="text-[10px] text-slate-400">Auditor: KPMG Zug</div>
-            </div>
-
-            <div class="glass-slate-card rounded-2xl p-6 space-y-2 border border-white/10">
-              <div class="text-[10px] text-slate-400 uppercase font-mono">Accrued Tax Liability</div>
-              <div class="text-base font-bold text-rose-300 font-mono">$3,052.50 USDC</div>
-              <div class="text-[10px] text-slate-400">Q4 2026 Reserve</div>
-            </div>
-          </div>
-
-          <div class="glass-slate-card rounded-2xl p-6 space-y-4 border border-white/10">
-            <h3 class="font-bold text-white text-base">Full Historical Ledger Audit Trail</h3>
-            <div class="overflow-x-auto">
-              <table class="w-full text-left border-collapse">
-                <thead>
-                  <tr class="border-b border-white/10 text-slate-400 text-[11px]">
-                    <th class="py-3 px-4">Tx Hash / ID</th>
-                    <th class="py-3 px-4">Timestamp</th>
-                    <th class="py-3 px-4">Type</th>
-                    <th class="py-3 px-4">Source</th>
-                    <th class="py-3 px-4">Destination</th>
-                    <th class="py-3 px-4">Amount</th>
-                    <th class="py-3 px-4">Asset</th>
-                  </tr>
-                </thead>
-                <tbody id="reportsTableBody" class="divide-y divide-white/5 text-slate-300 font-mono">
-                  <!-- JS Populated -->
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <!-- VIEW 7: ACCOUNTS & LEDGERS -->
-        <div id="view-accounts" class="hidden space-y-6">
-          <div class="flex items-center justify-between border-b border-white/10 pb-4">
-            <h2 class="text-xl font-bold text-white">Accounts & Multi-Currency Ledgers</h2>
-          </div>
-          <div id="accountsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
-        </div>
-
-        <!-- VIEW 8: EMPLOYEE ROSTER -->
-        <div id="view-roster" class="hidden space-y-6">
-          <div class="flex items-center justify-between border-b border-white/10 pb-4">
-            <h2 class="text-xl font-bold text-white">Employee Roster & Payroll Mapping</h2>
-            <button onclick="openAddEmployeeModal()" class="bg-brand-600 hover:bg-brand-500 text-white font-bold py-2 px-4 rounded-xl transition cursor-pointer">
-              + Add Employee
-            </button>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-              <thead>
-                <tr class="border-b border-white/10 text-slate-400 text-[11px]">
-                  <th class="py-3 px-4">Name</th>
-                  <th class="py-3 px-4">Title</th>
-                  <th class="py-3 px-4">Wallet</th>
-                  <th class="py-3 px-4">Asset</th>
-                  <th class="py-3 px-4">Salary</th>
-                  <th class="py-3 px-4">Status</th>
-                </tr>
-              </thead>
-              <tbody id="rosterTableBody" class="divide-y divide-white/5 text-slate-300">
-                <tr><td colspan="6" class="py-6 text-center text-slate-400">Loading roster...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- VIEW 9: BOLT-ONS -->
-        <div id="view-boltons" class="hidden space-y-6">
-          <div class="flex items-center justify-between border-b border-white/10 pb-4">
-            <h2 class="text-xl font-bold text-white">Modular Bolt-On System</h2>
-          </div>
-          <div id="boltonsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
-        </div>
-
-      </section>
-    </div>
+      <nav id="tabs" class="tabs" aria-label="Workspace"></nav>
+      <div id="content"></div>
+    </section>
   </main>
-
-  <footer class="border-t border-white/10 bg-slate-950/90 py-6 text-center text-xs text-slate-400 font-mono">
-    Terminull Enterprise Private Banking Suite • Groth16 Verified on <strong class="text-white">terminull.lunul.org</strong>
+  <footer>
+    Network: chain 448000 · USDT (18 decimals): <code id="usdtAddressDisplay">loading network configuration…</code>.
+    Shielding and unshielding are disabled; no private balance is inferred or displayed.
   </footer>
-
-  <!-- JAVASCRIPT APP LOGIC -->
   <script>
-    const ZK_POOL_CONTRACT = "0xC82681a28Bf26f6beb6b48442Ba9887a2872743B";
-    const GROTH_VERIFIER_CONTRACT = "0x39e1451944d2F71F586850f81c12E9A8DA5A73b0";
-    const USDT_CONTRACT = "0x7ec3659A8225ED474D7c662126616aE08545C29b";
-
-    let currentOrgSerial = localStorage.getItem('terminull_org_serial') || "TERM-ORG-DEMO-2026";
-    let currentWallet = localStorage.getItem('terminull_wallet') || "0x71C392A748a192848b91829e19a28b18428a1928";
-
-    let privacyState = JSON.parse(localStorage.getItem('terminull_privacy_state')) || {
-      USDT: { tier1: 20000, tier2: 5000, tier3: 2500 },
-      LUN: { tier1: 1250, tier2: 500, tier3: 250 },
-      USDC: { tier1: 35000, tier2: 10000, tier3: 5000 }
-    };
-
-    let activityLog = JSON.parse(localStorage.getItem('terminull_activity_log')) || [
-      { timestamp: '2026-10-24 10:15:22', asset: 'USDT (18d)', tier: 'Tier 3 (ZK Private)', action: 'Groth16 ZK Shield', amount: '2,500.00', status: 'VERIFIED' }
+    const CHAIN_ID_HEX = '0x6d600';
+    const RPC_URL = 'https://rpc.lunul.org';
+    let USDT_ADDRESS = '';
+    let POOL_ADDRESS = '';
+    let VERIFIER_ADDRESS = '';
+    const ERC20_ABI = [
+      'function balanceOf(address) view returns (uint256)',
+      'function allowance(address,address) view returns (uint256)',
+      'function approve(address,uint256) returns (bool)',
+      'function transfer(address,uint256) returns (bool)',
+      'function decimals() view returns (uint8)',
+      'event Transfer(address indexed from,address indexed to,uint256 value)'
     ];
+    let provider;
+    let signer;
+    let wallet = '';
+    let authToken = sessionStorage.getItem('terminull_session');
+    let session = null;
+    let context = null;
+    let activeTab = 'overview';
+    let contracts = null;
+    let networkReady = Promise.resolve();
+    let walletListenersInstalled = false;
 
-    let employeesList = [
-      { id: 1, name: 'Alexandre von Lunul', rank_title: 'Lead Architect', wallet: '0x8920...4A21', salary: 7500, asset: 'USDT' },
-      { id: 2, name: 'Elena Rostova', rank_title: 'Protocol Engineer', wallet: '0x3120...8B11', salary: 5000, asset: 'USDT' },
-      { id: 3, name: 'Marcus Vance', rank_title: 'Security Auditor', wallet: '0x9941...2C00', salary: 4000, asset: 'USDC' }
-    ];
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+    }
 
-    let customVaults = [
-      { id: 1, name: 'Smart Contract Audit Escrow', asset: 'USDT', amount: 15000, unlock_at: '2026-11-15', cliff_days: 30, status: 'LOCKED' }
-    ];
+    function toggleJoinFields() {
+      const supplier = document.getElementById('joinRole').value === 'supplier';
+      document.getElementById('joinTitleField').classList.toggle('hidden', supplier);
+      document.getElementById('joinSalaryField').classList.toggle('hidden', supplier);
+      document.getElementById('joinEmailField').classList.toggle('hidden', !supplier);
+    }
 
-    let daoData = {
-      container: { name: 'Terminull Advisory Council', quorum: 51.0, timelock_hours: 24 },
-      proposals: [
-        { proposal_key: 'TIP-01', title: 'Fund Q1 ZK-SNARK Privacy Research Grant', amount: 25000, asset: 'USDC', votes_for: 12, votes_against: 2, status: 'ACTIVE' }
-      ]
-    };
+    async function requestMembership() {
+      try {
+        await api('/api/join-requests', {
+          method:'POST',
+          body:json({
+            serial:document.getElementById('joinSerial').value,
+            role:document.getElementById('joinRole').value,
+            name:document.getElementById('joinName').value,
+            title:document.getElementById('joinTitle').value,
+            salary:document.getElementById('joinSalary').value,
+            email:document.getElementById('joinEmail').value
+          })
+        });
+        showNotice('Membership request submitted to the company owner.', 'success');
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
 
-    window.addEventListener('DOMContentLoaded', () => {
-      refreshAppData();
-      renderDashboardActivity();
-      renderPayroll();
-      renderEscrowVaults();
-      renderDao();
-      renderReports();
+    function showNotice(message, type = '') {
+      const node = document.getElementById('notice');
+      node.textContent = message;
+      node.className = `notice ${type}`;
+      node.classList.remove('hidden');
+    }
+
+    function renderJoinRequests(rows) {
+      if (!rows.length) return '<p class="muted">No pending membership requests.</p>';
+      return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Role</th><th>Wallet</th><th>Requested details</th><th>Actions</th></tr></thead><tbody>${rows.map(row =>
+        `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.requested_role)}</td><td class="mono">${escapeHtml(row.wallet)}</td><td>${row.requested_role === 'employee' ? `${escapeHtml(row.title)} · ${escapeHtml(displayAmount(row.salary_raw))} USDT` : escapeHtml(row.contact_email)}</td><td><div class="actions"><button onclick="resolveJoinRequest(${row.id},'approve')">Approve</button><button onclick="resolveJoinRequest(${row.id},'reject')">Reject</button></div></td></tr>`
+      ).join('')}</tbody></table></div>`;
+    }
+
+    async function resolveJoinRequest(id, action) {
+      try {
+        await api(`/api/org/${encodeURIComponent(context.serial)}/join-requests/${id}/${action}`, { method:'POST', body:'{}' });
+        showNotice(`Membership request ${action}d.`, 'success');
+        await loadSession();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    function clearNotice() {
+      document.getElementById('notice').classList.add('hidden');
+    }
+
+    async function api(url, options = {}) {
+      const headers = { ...(options.body ? { 'Content-Type':'application/json' } : {}), ...(options.headers || {}) };
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
+      const response = await fetch(url, { ...options, headers });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 401) {
+          authToken = null;
+          sessionStorage.removeItem('terminull_session');
+          renderSignedOut();
+        }
+        throw new Error(data.error || `Request failed (${response.status}).`);
+      }
+      return data;
+    }
+
+    function json(body) { return JSON.stringify(body); }
+
+    async function ensureNetwork() {
+      const chainId = await window.ethereum.request({ method:'eth_chainId' });
+      if (chainId.toLowerCase() !== CHAIN_ID_HEX) {
+        try {
+          await window.ethereum.request({ method:'wallet_switchEthereumChain', params:[{ chainId:CHAIN_ID_HEX }] });
+        } catch (error) {
+          if (error.code !== 4902) throw error;
+          await window.ethereum.request({
+            method:'wallet_addEthereumChain',
+            params:[{
+              chainId:CHAIN_ID_HEX,
+              chainName:'Lunul Paris PoA',
+              rpcUrls:[RPC_URL],
+              nativeCurrency:{ name:'Lunul', symbol:'LUN', decimals:18 }
+            }]
+          });
+        }
+      }
+      const finalId = await window.ethereum.request({ method:'eth_chainId' });
+      if (finalId.toLowerCase() !== CHAIN_ID_HEX) throw new Error('Switch the wallet to chain 448000 to continue.');
+    }
+
+    async function connectWallet() {
+      clearNotice();
+      try {
+        await networkReady;
+        if (!USDT_ADDRESS) throw new Error('Network configuration is unavailable.');
+        if (!window.ethereum) throw new Error('No injected EVM wallet was found. Install or enable a wallet such as MetaMask.');
+        await window.ethereum.request({ method:'eth_requestAccounts' });
+        await ensureNetwork();
+        provider = new ethers.BrowserProvider(window.ethereum);
+        signer = await provider.getSigner();
+        wallet = ethers.getAddress(await signer.getAddress());
+        document.getElementById('networkStatus').textContent = 'Connected · chain 448000';
+        const challenge = await fetch('/api/auth/challenge', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body:json({ wallet })
+        }).then(async response => {
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Unable to start wallet sign-in.');
+          return result;
+        });
+        const signature = await signer.signMessage(challenge.message);
+        const verified = await fetch('/api/auth/verify', {
+          method:'POST',
+          headers:{ 'Content-Type':'application/json' },
+          body:json({ wallet, signature })
+        }).then(async response => {
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Wallet sign-in failed.');
+          return result;
+        });
+        authToken = verified.token;
+        sessionStorage.setItem('terminull_session', authToken);
+        await loadSession();
+        installWalletListeners();
+      } catch (error) {
+        showNotice(error.message || 'Wallet connection failed.', 'error');
+      }
+
+      function installWalletListeners() {
+        if (walletListenersInstalled || !window.ethereum?.on) return;
+        window.ethereum.on('accountsChanged', () => signOut('Wallet account changed. Sign in again.'));
+        window.ethereum.on('chainChanged', () => signOut('Network changed. Reconnect on chain 448000.'));
+        walletListenersInstalled = true;
+      }
+    }
+
+    function signOut(message = '') {
+      authToken = null;
+      sessionStorage.removeItem('terminull_session');
+      wallet = '';
+      session = null;
+      context = null;
+      provider = null;
+      signer = null;
+      document.getElementById('networkStatus').textContent = 'Network not checked';
+      renderSignedOut();
+      if (message) showNotice(message);
+    }
+
+    function renderSignedOut() {
+      document.getElementById('signedOut').classList.remove('hidden');
+      document.getElementById('workspace').classList.add('hidden');
+      document.getElementById('walletButton').textContent = 'Connect wallet';
+    }
+
+    async function loadSession() {
+      session = await api('/api/session');
+      document.getElementById('signedOut').classList.add('hidden');
+      document.getElementById('workspace').classList.remove('hidden');
+      document.getElementById('walletButton').textContent = 'Sign out';
+      document.getElementById('walletButton').onclick = () => signOut();
+      document.getElementById('connectedWallet').textContent = wallet;
+      const contexts = [];
+      for (const company of session.companies) contexts.push({ type:'company', serial:company.serial, label:`Company · ${company.name} (${company.serial})` });
+      for (const employee of session.employeeRows) contexts.push({ type:'employee', serial:employee.serial, label:`Employee · ${employee.company_name}` });
+      for (const supplier of session.supplierRows) contexts.push({ type:'supplier', serial:supplier.serial, label:`Supplier · ${supplier.company_name}` });
+      for (const invoice of session.invoiceRows) {
+        if (!contexts.some(item => item.serial === invoice.serial && item.type === 'supplier')) {
+          contexts.push({ type:'supplier', serial:invoice.serial, label:`Supplier · ${invoice.company_name}` });
+        }
+      }
+      if (!contexts.length) contexts.push({ type:'new', serial:'', label:'New workspace' });
+      const select = document.getElementById('contextSelect');
+      select.innerHTML = contexts.map((item, index) => `<option value="${index}">${escapeHtml(item.label)}</option>`).join('');
+      select._contexts = contexts;
+      context = contexts[0];
+      activeTab = 'overview';
+      await renderWorkspace();
+    }
+
+    async function selectContext(index) {
+      context = document.getElementById('contextSelect')._contexts[Number(index)];
+      activeTab = 'overview';
+      await renderWorkspace();
+    }
+
+    const tabsFor = type => ({
+      company:['overview','employees','suppliers','invoices','dao','reports'],
+      employee:['overview','activity'],
+      supplier:['overview','invoices','activity'],
+      new:['overview']
+    }[type] || ['overview']);
+
+    const tabLabels = { overview:'Overview', employees:'Employees & payroll', suppliers:'Suppliers', invoices:'Supplier invoices', dao:'DAO & escrow', reports:'Reports', activity:'Transactions', invoice:'Invoice a company' };
+
+    async function renderWorkspace() {
+      if (!session || !context) return;
+      const tabs = tabsFor(context.type);
+      if (!tabs.includes(activeTab)) activeTab = tabs[0];
+      document.getElementById('tabs').innerHTML = tabs.map(tab =>
+        `<button type="button" aria-current="${tab === activeTab ? 'page' : 'false'}" onclick="openTab('${tab}')">${tabLabels[tab]}</button>`
+      ).join('');
+      const content = document.getElementById('content');
+      content.innerHTML = '<div class="card muted">Loading verified account data…</div>';
+      try {
+        if (context.type === 'new') return renderNewWallet();
+        if (context.type === 'company') return await renderCompany();
+        if (context.type === 'employee') return await renderEmployee();
+        return await renderSupplier();
+      } catch (error) {
+        content.innerHTML = `<div class="card danger">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function openTab(tab) { activeTab = tab; renderWorkspace(); }
+
+    function renderNewWallet() {
+      document.getElementById('content').innerHTML = `
+        <section class="card">
+          <h2>No company membership found for this wallet</h2>
+          <p class="muted">Register a company, request employee/supplier access using its serial, or submit an invoice using the company serial.</p>
+          <h3>Register a company</h3>
+          <label for="newCompanyName">Company name</label><input id="newCompanyName" maxlength="200">
+          <button onclick="registerCompany()">Create company workspace</button>
+        </section>
+        <section class="card">
+          <h3>Request company membership</h3>
+          <div class="form-grid"><div><label>Company serial</label><input id="joinSerial" placeholder="TERM-…"></div>
+            <div><label>Role requested</label><select id="joinRole" onchange="toggleJoinFields()"><option value="employee">Employee</option><option value="supplier">Supplier</option></select></div>
+            <div><label>Name</label><input id="joinName"></div><div id="joinTitleField"><label>Job title</label><input id="joinTitle"></div>
+            <div id="joinSalaryField"><label>Monthly USDT salary</label><input id="joinSalary" inputmode="decimal"></div>
+            <div id="joinEmailField" class="hidden"><label>Supplier contact email (optional)</label><input id="joinEmail" type="email"></div>
+          </div>
+          <button onclick="requestMembership()">Submit membership request</button>
+        </section>
+        <section class="card">
+          <h3>Invoice a company</h3>
+          <div class="form-grid">
+            <div><label for="invoiceCompanySerial">Company serial</label><input id="invoiceCompanySerial" placeholder="TERM-…"></div>
+            <div><label for="invoiceNumber">Invoice number</label><input id="invoiceNumber"></div>
+            <div><label for="invoiceAmount">Amount (USDT)</label><input id="invoiceAmount" inputmode="decimal" placeholder="0.00"></div>
+            <div><label for="invoiceDueDate">Due date</label><input id="invoiceDueDate" type="date"></div>
+          </div>
+          <label for="invoiceDescription">Description</label><textarea id="invoiceDescription" rows="3"></textarea>
+          <button onclick="submitInvoice('invoiceCompanySerial')">Submit invoice</button>
+        </section>`;
+    }
+
+    async function registerCompany() {
+      try {
+        await api('/api/org/register', { method:'POST', body:json({ name:document.getElementById('newCompanyName').value }) });
+        await loadSession();
+        showNotice('Company workspace created for the connected wallet.', 'success');
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    function amount(raw) { return ethers.formatUnits(BigInt(raw || '0'), 18); }
+    function displayAmount(raw) {
+      const value = Number(amount(raw));
+      return Number.isFinite(value) ? value.toLocaleString(undefined,{ maximumFractionDigits:8 }) : amount(raw);
+    }
+
+    async function walletUsdtBalance() {
+      if (!USDT_ADDRESS) throw new Error('The configured USDT contract has not been verified on the current network.');
+      const token = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, provider);
+      const decimals = await token.decimals();
+      if (Number(decimals) !== 18) throw new Error('Configured USDT does not report 18 decimals.');
+      return token.balanceOf(wallet);
+    }
+
+    async function renderCompany() {
+      const serial = context.serial;
+      const org = await api(`/api/org/${encodeURIComponent(serial)}`);
+      const [employees, suppliers, invoices, activity, balance, joinRequests] = await Promise.all([
+        api(`/api/org/${encodeURIComponent(serial)}/employees`),
+        api(`/api/org/${encodeURIComponent(serial)}/suppliers`),
+        api(`/api/org/${encodeURIComponent(serial)}/invoices`),
+        api(`/api/org/${encodeURIComponent(serial)}/activity`),
+        walletUsdtBalance(),
+        api(`/api/org/${encodeURIComponent(serial)}/join-requests`)
+      ]);
+      const content = document.getElementById('content');
+      if (activeTab === 'overview') {
+        content.innerHTML = `
+          <div class="grid">
+            <article class="card"><div class="small muted">USDT in connected wallet</div><h2>${escapeHtml(ethers.formatUnits(balance,18))} USDT</h2><p class="small muted">On-chain wallet balance; not a company ledger balance.</p></article>
+            <article class="card"><div class="small muted">Company serial</div><h2 class="mono">${escapeHtml(org.serial)}</h2><p>${escapeHtml(org.name)}</p></article>
+            <article class="card"><div class="small muted">Confirmed company transactions</div><h2>${activity.length}</h2><p class="small muted">Only receipts confirmed by the configured RPC are included.</p></article>
+          </div>
+          <section class="card"><h2>Shielding status</h2><p class="danger">Unavailable: pool deposits and withdrawals are disabled because commitment recovery and enforced proof verification are not ready.</p><p class="small muted">Pool ${POOL_ADDRESS} · verifier ${VERIFIER_ADDRESS}</p></section>
+          <section class="card"><h2>Configured contracts</h2><p>DAO: ${org.dao_address ? `<code>${escapeHtml(org.dao_address)}</code>` : '<span class="muted">Not deployed</span>'}</p><p>Escrow: ${org.escrow_address ? `<code>${escapeHtml(org.escrow_address)}</code>` : '<span class="muted">Not deployed</span>'}</p></section>`;
+      } else if (activeTab === 'employees') {
+        content.innerHTML = `
+          <section class="card"><h2>Add employee</h2>
+            <div class="form-grid"><div><label>Name</label><input id="employeeName"></div><div><label>Wallet</label><input id="employeeWallet" placeholder="0x…"></div><div><label>Title</label><input id="employeeTitle"></div><div><label>Monthly USDT salary</label><input id="employeeSalary" inputmode="decimal" placeholder="0.00"></div></div>
+            <button onclick="addEmployee()">Add employee</button>
+          </section>
+          <section class="card"><h2>Bulk employee import</h2><p class="small muted">CSV columns: <code>name,wallet,title,salary</code>. Replace every placeholder with real data. All rows validate before any are saved.</p>
+            <div class="actions"><button onclick="downloadCsv('employees')">Download employee CSV template</button><input id="employeeCsv" type="file" accept=".csv,text/csv"><button onclick="importCsv('employees')">Import employees</button></div>
+          </section>
+          <section class="card"><h2>Bulk payment manifest</h2><p class="small muted">CSV columns: <code>wallet,amount,memo</code>. Each payment is a separate confirmed USDT transfer from the connected company wallet.</p>
+            <div class="actions"><button onclick="downloadCsv('payments')">Download payment CSV template</button><input id="paymentCsv" type="file" accept=".csv,text/csv"><button onclick="executeMassPayments()">Pay manifest</button></div>
+          </section>
+          <section class="card"><h2>Pending membership requests</h2>${renderJoinRequests(joinRequests)}</section>
+          <section class="card"><h2>Employee roster</h2>${renderEmployees(employees)}</section>`;
+      } else if (activeTab === 'suppliers') {
+        content.innerHTML = `
+          <section class="card"><h2>Add supplier</h2><div class="form-grid"><div><label>Supplier name</label><input id="supplierName"></div><div><label>Wallet</label><input id="supplierWallet" placeholder="0x…"></div><div><label>Contact email (optional)</label><input id="supplierEmail" type="email"></div></div><button onclick="addSupplier()">Add supplier</button></section>
+          <section class="card"><h2>Bulk supplier import</h2><p class="small muted">CSV columns: <code>name,wallet,email</code>. Replace every placeholder with real data; no wallet is generated for a supplier.</p><div class="actions"><button onclick="downloadCsv('suppliers')">Download supplier CSV template</button><input id="supplierCsv" type="file" accept=".csv,text/csv"><button onclick="importCsv('suppliers')">Import suppliers</button></div></section>
+          <section class="card"><h2>Pending membership requests</h2>${renderJoinRequests(joinRequests)}</section>
+          <section class="card"><h2>Supplier directory</h2>${renderSuppliers(suppliers)}</section>`;
+      } else if (activeTab === 'invoices') {
+        content.innerHTML = `<section class="card"><h2>Supplier invoices · ${escapeHtml(org.serial)}</h2><p class="small muted">Invoices are routed to this company serial. USDT is held by the company escrow contract after funding.</p>
+          ${org.escrow_address ? '<p>Escrow contract: <code>'+escapeHtml(org.escrow_address)+'</code></p>' : '<button onclick="deployEscrow()">Deploy company escrow</button>'}
+          ${renderInvoices(invoices, true, Boolean(org.escrow_address))}</section>`;
+      } else if (activeTab === 'dao') {
+        content.innerHTML = await renderDao(org);
+      } else if (activeTab === 'reports') {
+        content.innerHTML = `<section class="card"><h2>Company reporting</h2><p class="muted">Exports include employee/supplier records, invoices, and confirmed chain receipts only.</p><div class="actions"><button onclick="exportCompanyReport()">Download full company CSV package</button><button onclick="downloadCsv('employees')">Employee template</button><button onclick="downloadCsv('suppliers')">Supplier template</button><button onclick="downloadCsv('payments')">Payment template</button></div></section><section class="card"><h2>Confirmed transaction history</h2>${renderActivity(activity)}</section>`;
+      }
+    }
+
+    function renderEmployees(rows) {
+      if (!rows.length) return '<p class="muted">No employees have been added.</p>';
+      return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Title</th><th>Wallet</th><th>Monthly USDT</th><th>Status</th></tr></thead><tbody>${rows.map(row =>
+        `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.title)}</td><td class="mono">${escapeHtml(row.wallet)}</td><td>${escapeHtml(displayAmount(row.salary_raw))}</td><td>${escapeHtml(row.status)}</td></tr>`
+      ).join('')}</tbody></table></div>`;
+    }
+
+    function renderSuppliers(rows) {
+      if (!rows.length) return '<p class="muted">No suppliers have been added.</p>';
+      return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Wallet</th><th>Email</th><th>Status</th></tr></thead><tbody>${rows.map(row =>
+        `<tr><td>${escapeHtml(row.name)}</td><td class="mono">${escapeHtml(row.wallet)}</td><td>${escapeHtml(row.contact_email)}</td><td>${escapeHtml(row.status)}</td></tr>`
+      ).join('')}</tbody></table></div>`;
+    }
+
+    function renderInvoices(rows, companyView = false, escrowConfigured = false) {
+      if (!rows.length) return '<p class="muted">No invoices have been submitted.</p>';
+      return `<div class="table-wrap"><table><thead><tr><th>Invoice</th><th>Supplier</th><th>Amount</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows.map(row => {
+        const invoice = JSON.stringify({ id:row.id, escrow_id:row.escrow_id, status:row.status, amount_raw:row.amount_raw, supplier_wallet:row.supplier_wallet });
+        const actions = companyView && row.status === 'OPEN' && escrowConfigured
+          ? `<button onclick='fundInvoice(${escapeHtml(invoice)})'>Fund escrow</button>`
+          : companyView && row.status === 'ESCROWED'
+            ? `<button onclick='releaseInvoice(${escapeHtml(invoice)})'>Approve & release</button><button onclick='refundInvoice(${escapeHtml(invoice)})'>Refund (after timeout)</button>`
+            : '';
+        return `<tr><td>${escapeHtml(row.invoice_number)}<br><span class="small muted">${escapeHtml(row.description)}</span></td><td class="mono">${escapeHtml(row.supplier_wallet)}</td><td>${escapeHtml(displayAmount(row.amount_raw))} USDT</td><td>${escapeHtml(row.due_date)}</td><td>${escapeHtml(row.status)}</td><td><div class="actions">${actions}</div>${row.tx_hash ? `<code class="small">${escapeHtml(row.tx_hash)}</code>` : ''}</td></tr>`;
+      }).join('')}</tbody></table></div>`;
+    }
+
+    async function addEmployee() {
+      try {
+        const body = {
+          name:document.getElementById('employeeName').value,
+          wallet:document.getElementById('employeeWallet').value,
+          title:document.getElementById('employeeTitle').value,
+          salary:document.getElementById('employeeSalary').value
+        };
+        await api(`/api/org/${encodeURIComponent(context.serial)}/employees`, { method:'POST', body:json(body) });
+        showNotice('Employee saved.', 'success'); await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function addSupplier() {
+      try {
+        const body = {
+          name:document.getElementById('supplierName').value,
+          wallet:document.getElementById('supplierWallet').value,
+          email:document.getElementById('supplierEmail').value
+        };
+        await api(`/api/org/${encodeURIComponent(context.serial)}/suppliers`, { method:'POST', body:json(body) });
+        showNotice('Supplier saved.', 'success'); await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [], cell = '', quoted = false;
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (quoted && char === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+        else if (char === '"') quoted = !quoted;
+        else if (char === ',' && !quoted) { row.push(cell); cell = ''; }
+        else if ((char === '\n' || char === '\r') && !quoted) {
+          if (char === '\r' && text[i + 1] === '\n') i++;
+          row.push(cell); cell = '';
+          if (row.some(value => value.trim())) rows.push(row);
+          row = [];
+        } else cell += char;
+      }
+      if (quoted) throw new Error('CSV has an unmatched quote.');
+      row.push(cell);
+      if (row.some(value => value.trim())) rows.push(row);
+      if (rows.length < 2) throw new Error('CSV must include a header and at least one data row.');
+      const headers = rows.shift().map(item => item.trim().replace(/^\uFEFF/, '').toLowerCase());
+      return rows.map((values, index) => {
+        if (values.length !== headers.length) throw new Error(`CSV row ${index + 2} has ${values.length} columns; expected ${headers.length}.`);
+        return Object.fromEntries(headers.map((header, i) => [header, values[i].trim()]));
+      });
+    }
+
+    async function importCsv(kind) {
+      const inputId = kind === 'employees' ? 'employeeCsv' : 'supplierCsv';
+      const file = document.getElementById(inputId).files[0];
+      try {
+        if (!file) throw new Error('Choose a CSV file to import.');
+        const rows = parseCsv(await file.text());
+        await api(`/api/org/${encodeURIComponent(context.serial)}/bulk/${kind}`, { method:'POST', body:json({ rows }) });
+        showNotice(`Imported ${rows.length} ${kind}.`, 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    function downloadCsv(kind) {
+      const templates = {
+        employees:'name,wallet,title,salary\nEMPLOYEE_NAME,PASTE_EMPLOYEE_WALLET_HERE,JOB_TITLE,MONTHLY_USDT_AMOUNT\n',
+        suppliers:'name,wallet,email\nSUPPLIER_NAME,PASTE_SUPPLIER_WALLET_HERE,EMAIL_ADDRESS\n',
+        payments:'wallet,amount,memo\nPASTE_RECIPIENT_WALLET_HERE,AMOUNT_IN_USDT,MEMO\n'
+      };
+      saveCsv(`${kind}-template.csv`, templates[kind]);
+    }
+
+    function csvCell(value) {
+      let text = String(value ?? '');
+      if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
+      return /[",\r\n]/.test(text) ? `"${text.replace(/"/g,'""')}"` : text;
+    }
+
+    function saveCsv(filename, content) {
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(new Blob([content], { type:'text/csv;charset=utf-8' }));
+      link.href = url; link.download = filename; link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    async function executeMassPayments() {
+      const file = document.getElementById('paymentCsv').files[0];
+      try {
+        if (!file) throw new Error('Choose a payment CSV to continue.');
+        const rows = parseCsv(await file.text());
+        for (const [index, row] of rows.entries()) {
+          if (!row.wallet || !row.amount || !ethers.isAddress(row.wallet)) throw new Error(`Payment row ${index + 2} has an invalid wallet or amount.`);
+          ethers.parseUnits(row.amount, 18);
+        }
+        if (!confirm(`Send ${rows.length} separate USDT transfers from ${wallet}? Each transfer requires an on-chain confirmation.`)) return;
+        const token = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, signer);
+        for (const [index, row] of rows.entries()) {
+          showNotice(`Sending payment ${index + 1} of ${rows.length}…`);
+          const value = ethers.parseUnits(row.amount,18);
+          const tx = await token.transfer(ethers.getAddress(row.wallet), value);
+          const receipt = await tx.wait();
+          if (receipt.status !== 1) throw new Error(`Payment ${index + 1} was not confirmed successfully.`);
+          await api(`/api/org/${encodeURIComponent(context.serial)}/payments/confirm`, {
+            method:'POST',
+            body:json({ txHash:receipt.hash, recipient:row.wallet, amount:row.amount, memo:row.memo || `CSV payment ${index + 1}` })
+          });
+        }
+        showNotice(`Confirmed ${rows.length} USDT payments.`, 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function submitInvoice(serialInputId) {
+      try {
+        const serial = document.getElementById(serialInputId).value.trim();
+        await api(`/api/org/${encodeURIComponent(serial)}/invoices`, {
+          method:'POST',
+          body:json({
+            invoiceNumber:document.getElementById('invoiceNumber').value,
+            amount:document.getElementById('invoiceAmount').value,
+            dueDate:document.getElementById('invoiceDueDate').value,
+            description:document.getElementById('invoiceDescription').value
+          })
+        });
+        await loadSession();
+        showNotice('Invoice submitted to the company serial.', 'success');
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function renderSupplier() {
+      const invoices = (await api('/api/my/invoices')).filter(row => row.org_serial === context.serial);
+      const content = document.getElementById('content');
+      if (activeTab === 'overview' || activeTab === 'invoices') {
+        content.innerHTML = `
+          <section class="card"><h2>Invoice a company by serial</h2>
+            <div class="form-grid"><div><label>Company serial</label><input id="invoiceCompanySerial" value="${escapeHtml(context.serial)}"></div>
+              <div><label>Invoice number</label><input id="invoiceNumber"></div><div><label>Amount (USDT)</label><input id="invoiceAmount" inputmode="decimal"></div><div><label>Due date</label><input id="invoiceDueDate" type="date"></div></div>
+            <label>Description</label><textarea id="invoiceDescription" rows="3"></textarea><button onclick="submitInvoice('invoiceCompanySerial')">Submit invoice</button>
+          </section>
+          <section class="card"><h2>Invoices and company payments</h2>${renderInvoices(invoices)}<button onclick="exportMyInvoices()">Download invoice CSV</button></section>`;
+      } else if (activeTab === 'activity') {
+        const activity = await api(`/api/org/${encodeURIComponent(context.serial)}/activity`);
+        content.innerHTML = `<section class="card"><h2>Payments received</h2>${renderActivity(activity)}<button onclick="exportMyActivity()">Download transaction CSV</button></section>`;
+      }
+    }
+
+    async function renderEmployee() {
+      const employees = await api(`/api/org/${encodeURIComponent(context.serial)}/employees`);
+      const employee = employees.find(row => row.wallet.toLowerCase() === wallet.toLowerCase());
+      const activity = await api(`/api/org/${encodeURIComponent(context.serial)}/activity`);
+      const content = document.getElementById('content');
+      if (activeTab === 'overview') {
+        content.innerHTML = `<section class="card"><h2>Employee account</h2>${employee
+          ? `<p>Name: ${escapeHtml(employee.name)}</p><p>Role: ${escapeHtml(employee.title)}</p><p>Payroll allocation: ${escapeHtml(displayAmount(employee.salary_raw))} USDT</p>`
+          : '<p class="muted">No employee record is associated with this wallet.</p>'}
+          <p class="small muted">Shielded balance management is disabled until safe note recovery and enforced proof verification are available.</p></section>
+          <section class="card"><h2>Payments received</h2>${renderActivity(activity)}<button onclick="exportMyActivity()">Download transaction CSV</button></section>`;
+      } else {
+        content.innerHTML = `<section class="card"><h2>Employee transaction history</h2>${renderActivity(activity)}<button onclick="exportMyActivity()">Download transaction CSV</button></section>`;
+      }
+    }
+
+    function renderActivity(rows) {
+      if (!rows.length) return '<p class="muted">No confirmed transactions have been recorded for this wallet/company.</p>';
+      return `<div class="table-wrap"><table><thead><tr><th>Transaction</th><th>Time</th><th>Type</th><th>From</th><th>To</th><th>Amount</th><th>Status</th></tr></thead><tbody>${rows.map(row =>
+        `<tr><td class="mono">${escapeHtml(row.tx_hash)}</td><td>${escapeHtml(row.timestamp)}</td><td>${escapeHtml(row.kind)}</td><td class="mono">${escapeHtml(row.wallet_from)}</td><td class="mono">${escapeHtml(row.wallet_to)}</td><td>${escapeHtml(displayAmount(row.amount_raw))} ${escapeHtml(row.asset)}</td><td>${escapeHtml(row.status)}</td></tr>`
+      ).join('')}</tbody></table></div>`;
+    }
+
+    async function getArtifacts() {
+      if (!contracts) contracts = await api('/api/contracts');
+      return contracts;
+    }
+
+    async function deployEscrow() {
+      try {
+        const artifacts = await getArtifacts();
+        const factory = new ethers.ContractFactory(artifacts.CompanyEscrow.abi, artifacts.CompanyEscrow.bytecode, signer);
+        showNotice('Deploying company escrow contract…');
+        const contract = await factory.deploy(wallet, USDT_ADDRESS);
+        const receipt = await contract.deploymentTransaction().wait();
+        if (receipt.status !== 1) throw new Error('Escrow contract deployment failed.');
+        const contractAddress = await contract.getAddress();
+        await api(`/api/org/${encodeURIComponent(context.serial)}/contracts/escrow`, { method:'POST', body:json({ txHash:receipt.hash }) });
+        showNotice(`Escrow deployed at ${contractAddress}.`, 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function fundInvoice(invoice) {
+      try {
+        const daysValue = prompt('After how many days may an unpaid escrow be refunded to the company? (1–3650)', '30');
+        if (daysValue === null) return;
+        const days = Number(daysValue);
+        if (!Number.isInteger(days) || days < 1 || days > 3650) throw new Error('Refund timeout must be between 1 and 3650 days.');
+        const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
+        if (!org.escrow_address) throw new Error('Deploy the company escrow contract first.');
+        const artifacts = await getArtifacts();
+        const escrow = new ethers.Contract(org.escrow_address, artifacts.CompanyEscrow.abi, signer);
+        const token = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, signer);
+        const value = BigInt(invoice.amount_raw);
+        const allowance = await token.allowance(wallet, org.escrow_address);
+        if (allowance < value) {
+          if (allowance !== 0n) {
+            const reset = await token.approve(org.escrow_address, 0);
+            await reset.wait();
+          }
+          const approval = await token.approve(org.escrow_address, value);
+          await approval.wait();
+        }
+        showNotice('Funding invoice escrow…');
+        const refundAfter = Math.floor(Date.now()/1000) + days*86400;
+        const tx = await escrow.createEscrow(ethers.id(String(invoice.id)), invoice.supplier_wallet, value, refundAfter);
+        const receipt = await tx.wait();
+        if (receipt.status !== 1) throw new Error('Escrow funding transaction failed.');
+        await api(`/api/org/${encodeURIComponent(context.serial)}/invoices/${invoice.id}/fund`, { method:'POST', body:json({ txHash:receipt.hash }) });
+        showNotice('Invoice funded in company escrow.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function escrowAction(invoice, action) {
+      try {
+        const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
+        if (!org.escrow_address) throw new Error('Company escrow contract is not configured.');
+        const artifacts = await getArtifacts();
+        const escrow = new ethers.Contract(org.escrow_address, artifacts.CompanyEscrow.abi, signer);
+        const tx = await escrow[action](invoice.escrow_id);
+        showNotice(`Waiting for escrow ${action} confirmation…`);
+        const receipt = await tx.wait();
+        if (receipt.status !== 1) throw new Error(`Escrow ${action} failed.`);
+        const pathAction = action === 'release' ? 'release' : 'refund';
+        await api(`/api/org/${encodeURIComponent(context.serial)}/invoices/${invoice.id}/${pathAction}`, { method:'POST', body:json({ txHash:receipt.hash }) });
+        showNotice(action === 'release' ? 'Supplier payment released.' : 'Company refund confirmed.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    function releaseInvoice(invoice) { escrowAction(invoice, 'release'); }
+    function refundInvoice(invoice) { escrowAction(invoice, 'refund'); }
+
+    async function renderDao(org) {
+      if (!org.dao_address) {
+        return `<section class="card"><h2>Company DAO</h2><p class="muted">Deploys a Paris-compatible DAO contract. The connected company owner is the initial member and admin; defaults are 51% affirmative votes and a 24-hour timelock.</p><button onclick="deployDao()">Deploy DAO</button></section>`;
+      }
+      const artifacts = await getArtifacts();
+      const dao = new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, provider);
+      const token = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, provider);
+      const [quorum, delay, count, treasuryBalance] = await Promise.all([
+        dao.quorumPercent(), dao.timelockSeconds(), dao.proposalCount(), token.balanceOf(org.dao_address)
+      ]);
+      const proposals = [];
+      const proposalCount = Number(count);
+      for (let id=Math.max(1, proposalCount - 99); id<=proposalCount; id++) {
+        const p = await dao.proposals(BigInt(id));
+        proposals.push({ id, ...p });
+      }
+      return `<section class="card"><h2>Company DAO</h2><p>Contract: <code>${escapeHtml(org.dao_address)}</code></p>
+        <p>Quorum: ${Number(quorum)}% · Timelock: ${Math.floor(Number(delay)/3600)} hours · Treasury: ${escapeHtml(ethers.formatUnits(treasuryBalance,18))} USDT</p>
+        <div class="form-grid"><div><label>Fund DAO treasury (USDT)</label><input id="daoFundingAmount" inputmode="decimal"></div><button onclick="fundDao()">Transfer USDT to DAO treasury</button></div>
+        <div class="form-grid"><div><label>New quorum (1–100%)</label><input id="daoQuorum" type="number" min="1" max="100" value="${Number(quorum)}"></div><div><label>Timelock hours (0–8760)</label><input id="daoDelay" type="number" min="0" max="8760" value="${Math.floor(Number(delay)/3600)}"></div></div>
+        <button onclick="saveDaoSettings()">Save governance settings</button>
+        <div class="form-grid"><div><label>Add DAO member wallet</label><input id="daoMember" placeholder="0x…"></div><button onclick="addDaoMember()">Add member</button></div>
+        <h3>Create treasury proposal</h3><div class="form-grid"><div><label>Recipient</label><input id="daoRecipient" placeholder="0x…"></div><div><label>Amount (USDT)</label><input id="daoAmount" inputmode="decimal"></div></div><button onclick="createDaoProposal()">Create proposal</button></section>
+        <section class="card"><h2>Proposals</h2>${proposals.length ? `<div class="table-wrap"><table><thead><tr><th>ID</th><th>Recipient</th><th>USDT</th><th>For / Against</th><th>Status</th><th>Actions</th></tr></thead><tbody>${proposals.map(p => `<tr><td>${p.id}</td><td class="mono">${escapeHtml(p.recipient)}</td><td>${escapeHtml(displayAmount(p.amount.toString()))}</td><td>${p.votesFor.toString()} / ${p.votesAgainst.toString()}</td><td>${p.executed ? 'Executed' : 'Open'}</td><td><div class="actions">${p.executed ? '' : `<button onclick="voteDao(${p.id},true)">Vote for</button><button onclick="voteDao(${p.id},false)">Vote against</button><button onclick="executeDao(${p.id})">Execute (permissionless after timelock)</button>`}</div></td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No proposals yet.</p>'}</section>`;
+    }
+
+    async function deployDao() {
+      try {
+        const artifacts = await getArtifacts();
+        const factory = new ethers.ContractFactory(artifacts.CompanyDAO.abi, artifacts.CompanyDAO.bytecode, signer);
+        showNotice('Deploying company DAO…');
+        const contract = await factory.deploy(wallet);
+        const receipt = await contract.deploymentTransaction().wait();
+        if (receipt.status !== 1) throw new Error('DAO deployment failed.');
+        const contractAddress = await contract.getAddress();
+        await api(`/api/org/${encodeURIComponent(context.serial)}/contracts/dao`, { method:'POST', body:json({ txHash:receipt.hash }) });
+        showNotice(`DAO deployed at ${contractAddress}.`, 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function daoContract() {
+      const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
+      const artifacts = await getArtifacts();
+      return new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, signer);
+    }
+
+    async function saveDaoSettings() {
+      try {
+        const quorum = Number(document.getElementById('daoQuorum').value);
+        const hours = Number(document.getElementById('daoDelay').value);
+        if (!Number.isInteger(quorum) || quorum < 1 || quorum > 100 || !Number.isInteger(hours) || hours < 0 || hours > 8760) throw new Error('Quorum must be 1–100 and delay 0–8760 hours.');
+        const dao = await daoContract();
+        await (await dao.setGovernance(quorum, hours*3600)).wait();
+        showNotice('DAO governance settings updated on-chain.', 'success'); await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function addDaoMember() {
+      try {
+        const address = ethers.getAddress(document.getElementById('daoMember').value);
+        const dao = await daoContract();
+        await (await dao.setMember(address, true)).wait();
+        showNotice('DAO member added on-chain.', 'success'); await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function createDaoProposal() {
+      try {
+        const recipient = ethers.getAddress(document.getElementById('daoRecipient').value);
+        const value = ethers.parseUnits(document.getElementById('daoAmount').value, 18);
+        if (value === 0n) throw new Error('Proposal amount must be positive.');
+        const dao = await daoContract();
+        await (await dao.createProposal(USDT_ADDRESS, recipient, value)).wait();
+        showNotice('DAO proposal created on-chain.', 'success'); await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function voteDao(id, support) {
+      try {
+        const dao = await daoContract();
+        await (await dao.vote(id, support)).wait();
+        showNotice('Vote recorded on-chain.', 'success'); await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function executeDao(id) {
+      try {
+        if (!confirm('Execute this approved proposal after the on-chain quorum and timelock checks?')) return;
+        const dao = await daoContract();
+        const receipt = await (await dao.execute(id)).wait();
+        await api(`/api/org/${encodeURIComponent(context.serial)}/dao/${id}/confirm`, {
+          method:'POST',
+          body:json({ txHash:receipt.hash })
+        });
+        showNotice('DAO proposal executed on-chain.', 'success'); await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function exportCompanyReport() {
+      try {
+        const data = await api(`/api/org/${encodeURIComponent(context.serial)}/report`);
+        const lines = [['record_type','id','tx_hash','timestamp','kind','from','to','amount','asset','status','memo']];
+        for (const tx of data.transactions) lines.push(['transaction','',tx.tx_hash,tx.timestamp,tx.kind,tx.wallet_from,tx.wallet_to,displayAmount(tx.amount_raw),tx.asset,tx.status,tx.memo]);
+        for (const invoice of data.invoices) lines.push(['invoice',invoice.id,invoice.tx_hash || '', '',invoice.invoice_number,invoice.supplier_wallet,context.serial,displayAmount(invoice.amount_raw),'USDT',invoice.status,invoice.description]);
+        for (const employee of data.employees) lines.push(['employee','','','','',employee.wallet,'',displayAmount(employee.salary_raw),'USDT',employee.status,employee.name]);
+        for (const supplier of data.suppliers) lines.push(['supplier','','','','',supplier.wallet,'','','',supplier.status,supplier.name]);
+        saveCsv(`terminull-${context.serial}-report.csv`, lines.map(row => row.map(csvCell).join(',')).join('\r\n')+'\r\n');
+        showNotice('Report downloaded. Only confirmed chain receipts are represented as transactions.', 'success');
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function exportMyActivity() {
+      try {
+        const rows = await api(`/api/org/${encodeURIComponent(context.serial)}/activity`);
+        const output = [['tx_hash','timestamp','kind','wallet_from','wallet_to','amount','asset','status','memo'].join(',')];
+        for (const row of rows) {
+          output.push([row.tx_hash,row.timestamp,row.kind,row.wallet_from,row.wallet_to,displayAmount(row.amount_raw),row.asset,row.status,row.memo].map(csvCell).join(','));
+        }
+        saveCsv(`terminull-${context.serial}-transactions.csv`, output.join('\r\n')+'\r\n');
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function exportMyInvoices() {
+      try {
+        const rows = (await api('/api/my/invoices')).filter(row => row.org_serial === context.serial);
+        const output = [['company_serial','company_name','invoice_number','amount_usdt','due_date','description','status','tx_hash'].join(',')];
+        for (const row of rows) {
+          output.push([row.org_serial,row.company_name,row.invoice_number,displayAmount(row.amount_raw),row.due_date,row.description,row.status,row.tx_hash].map(csvCell).join(','));
+        }
+        saveCsv(`terminull-${context.serial}-invoices.csv`, output.join('\r\n')+'\r\n');
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function fundDao() {
+      try {
+        const amountText = document.getElementById('daoFundingAmount').value;
+        const value = ethers.parseUnits(amountText, 18);
+        if (value === 0n) throw new Error('Funding amount must be positive.');
+        const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
+        const token = new ethers.Contract(USDT_ADDRESS, ERC20_ABI, signer);
+        const tx = await token.transfer(org.dao_address, value);
+        const receipt = await tx.wait();
+        if (receipt.status !== 1) throw new Error('DAO treasury funding transaction failed.');
+        await api(`/api/org/${encodeURIComponent(context.serial)}/payments/confirm`, {
+          method:'POST',
+          body:json({ txHash:receipt.hash, recipient:org.dao_address, amount:amountText, memo:'DAO treasury funding' })
+        });
+        showNotice('DAO treasury funded on-chain.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      networkReady = (async () => {
+        try {
+          const health = await fetch('/api/health').then(async response => {
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || 'Network configuration unavailable.');
+          return result;
+          });
+          USDT_ADDRESS = ethers.getAddress(health.usdt);
+          POOL_ADDRESS = ethers.getAddress(health.pool);
+          VERIFIER_ADDRESS = ethers.getAddress(health.verifier);
+          document.getElementById('usdtAddressDisplay').textContent = `${USDT_ADDRESS} · ${health.decimals} decimals`;
+          document.getElementById('networkStatus').textContent = `Chain ${health.chainId} · USDT ${health.decimals}d`;
+        } catch (error) {
+          document.getElementById('networkStatus').textContent = 'Network unavailable';
+          showNotice(error.message, 'error');
+        }
+      })();
+      await networkReady;
+      if (authToken && window.ethereum) {
+        try {
+          const accounts = await window.ethereum.request({ method:'eth_accounts' });
+          if (accounts.length) {
+            await ensureNetwork();
+            provider = new ethers.BrowserProvider(window.ethereum);
+            signer = await provider.getSigner();
+            wallet = ethers.getAddress(accounts[0]);
+            await loadSession();
+            installWalletListeners();
+          } else renderSignedOut();
+        } catch { signOut(); }
+      } else renderSignedOut();
     });
-
-    function switchTab(tabId) {
-      const tabs = ['dashboard', 'deposit', 'payroll', 'escrow', 'dao', 'reports', 'accounts', 'roster', 'boltons'];
-      tabs.forEach(t => {
-        const el = document.getElementById('view-' + t);
-        const btn = document.getElementById('tab-' + t);
-        if (el) el.classList.add('hidden');
-        if (btn) {
-          btn.className = 'w-full text-left px-3.5 py-2.5 rounded-xl text-slate-300 hover:bg-white/10 hover:text-white transition flex items-center cursor-pointer';
-        }
-      });
-
-      const activeEl = document.getElementById('view-' + tabId);
-      const activeBtn = document.getElementById('tab-' + tabId);
-      if (activeEl) activeEl.classList.remove('hidden');
-      if (activeBtn) {
-        activeBtn.className = 'w-full text-left px-3.5 py-2.5 rounded-xl bg-slate-700/70 text-slate-100 font-semibold transition flex items-center cursor-pointer border border-white/10';
-      }
-    }
-
-    function setShieldTier(tier) {
-      document.getElementById('selectedTierVal').value = tier;
-      for (let i = 1; i <= 3; i++) {
-        const btn = document.getElementById('tierBtn' + i);
-        if (i === tier) {
-          btn.className = 'p-3 rounded-xl bg-purple-950/40 border border-brand-500 text-brand-300 transition text-left cursor-pointer shadow';
-        } else {
-          btn.className = 'p-3 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:border-slate-500 transition text-left cursor-pointer';
-        }
-      }
-    }
-
-    async function handleWalletAction() {
-      alert(`Connected to NullNet PoA 448000.\nZKPool: ${ZK_POOL_CONTRACT}\nVerifier: ${GROTH_VERIFIER_CONTRACT}`);
-    }
-
-    function refreshAppData() {
-      const usdtBal = privacyState.USDT.tier1 + privacyState.USDT.tier2 + privacyState.USDT.tier3;
-      const lunBal = privacyState.LUN.tier1 + privacyState.LUN.tier2 + privacyState.LUN.tier3;
-      const usdcBal = privacyState.USDC.tier1 + privacyState.USDC.tier2 + privacyState.USDC.tier3;
-
-      document.getElementById('headerUsdcBal').textContent = '$' + usdcBal.toLocaleString();
-      document.getElementById('headerUsdtBal').textContent = usdtBal.toLocaleString();
-      document.getElementById('headerLunBal').textContent = lunBal.toLocaleString();
-
-      document.getElementById('usdtBalanceDisplay').textContent = usdtBal.toLocaleString() + ' USDT';
-      document.getElementById('lunBalanceDisplay').textContent = lunBal.toLocaleString() + ' LUN';
-      document.getElementById('zkBalanceDisplay').textContent = (privacyState.USDT.tier3 + privacyState.LUN.tier3).toLocaleString() + ' ZK';
-
-      document.getElementById('termTier1Usdt').textContent = privacyState.USDT.tier1.toLocaleString();
-      document.getElementById('termTier1Lun').textContent = privacyState.LUN.tier1.toLocaleString();
-      document.getElementById('termTier2Usdt').textContent = privacyState.USDT.tier2.toLocaleString();
-      document.getElementById('termTier2Lun').textContent = privacyState.LUN.tier2.toLocaleString();
-      document.getElementById('termTier3Usdt').textContent = privacyState.USDT.tier3.toLocaleString();
-      document.getElementById('termTier3Lun').textContent = privacyState.LUN.tier3.toLocaleString();
-
-      loadRoster();
-      loadAccounts();
-    }
-
-    function executeDepositAndShield() {
-      const asset = document.getElementById('shieldAssetSel').value;
-      const amount = Number(document.getElementById('shieldAmountInput').value);
-      const tier = Number(document.getElementById('selectedTierVal').value);
-
-      if (!amount || amount <= 0) {
-        alert('Please enter a valid deposit amount.');
-        return;
-      }
-
-      if (tier === 1) privacyState[asset].tier1 += amount;
-      else if (tier === 2) privacyState[asset].tier2 += amount;
-      else privacyState[asset].tier3 += amount;
-
-      localStorage.setItem('terminull_privacy_state', JSON.stringify(privacyState));
-
-      activityLog.unshift({
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-        asset: asset + (asset === 'USDT' ? ' (18d)' : ''),
-        tier: tier === 3 ? 'Tier 3 (Groth16 ZK)' : `Tier ${tier}`,
-        action: tier === 3 ? 'ZK Shield & Proof Verified' : 'Deposit & Shield',
-        amount: amount.toLocaleString(),
-        status: tier === 3 ? 'VERIFIED' : 'COMPLETED'
-      });
-
-      alert(`Successfully processed deposit & verified via Groth16 contract ${GROTH_VERIFIER_CONTRACT}!`);
-      document.getElementById('shieldAmountInput').value = '';
-      refreshAppData();
-      renderDashboardActivity();
-      renderReports();
-      switchTab('dashboard');
-    }
-
-    function renderDashboardActivity() {
-      const tbody = document.getElementById('dashboardActivityTable');
-      if (!activityLog.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="py-6 text-center text-slate-400">No activity recorded.</td></tr>';
-        return;
-      }
-      tbody.innerHTML = activityLog.slice(0, 10).map(item => `
-        <tr class="hover:bg-white/5 transition">
-          <td class="py-3 px-4 font-mono text-[11px] text-slate-400">${item.timestamp}</td>
-          <td class="py-3 px-4 font-bold text-white">${item.asset}</td>
-          <td class="py-3 px-4 text-purple-300">${item.tier}</td>
-          <td class="py-3 px-4 text-slate-200">${item.action}</td>
-          <td class="py-3 px-4 font-mono font-bold text-emerald-300">+${item.amount}</td>
-          <td class="py-3 px-4"><span class="bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded text-[10px] font-bold">${item.status}</span></td>
-        </tr>
-      `).join('');
-    }
-
-    function renderPayroll() {
-      const tbody = document.getElementById('payrollTableBody');
-      let total = employeesList.reduce((sum, emp) => sum + emp.salary, 0);
-
-      document.getElementById('payrollContributorCount').textContent = employeesList.length + ' Members';
-      document.getElementById('payrollTotalAmount').textContent = '$' + total.toLocaleString() + '.00';
-
-      tbody.innerHTML = employeesList.map(emp => `
-        <tr class="hover:bg-white/5 transition">
-          <td class="py-3 px-4 font-bold text-white">${emp.name}</td>
-          <td class="py-3 px-4 text-slate-300">${emp.rank_title}</td>
-          <td class="py-3 px-4 font-mono text-[11px] text-slate-400">${emp.wallet}</td>
-          <td class="py-3 px-4 text-emerald-300 font-bold">$${emp.salary.toLocaleString()} ${emp.asset}</td>
-          <td class="py-3 px-4"><span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-bold">READY</span></td>
-        </tr>
-      `).join('');
-    }
-
-    function executeBatchPayroll() {
-      const asset = document.getElementById('payrollAssetSel').value;
-      const total = employeesList.reduce((sum, emp) => sum + emp.salary, 0);
-
-      if (privacyState[asset].tier1 + privacyState[asset].tier2 < total) {
-        alert(`Insufficient ${asset} balance to execute batch payroll.`);
-        return;
-      }
-
-      privacyState[asset].tier2 -= total;
-      localStorage.setItem('terminull_privacy_state', JSON.stringify(privacyState));
-
-      activityLog.unshift({
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
-        asset: asset,
-        tier: 'Tier 2 (Shielded)',
-        action: 'Batch Payroll Disbursement',
-        amount: total.toLocaleString(),
-        status: 'COMPLETED'
-      });
-
-      alert(`Batch payroll disbursement of $${total.toLocaleString()} ${asset} executed successfully across ${employeesList.length} recipients!`);
-      refreshAppData();
-      renderDashboardActivity();
-      renderReports();
-    }
-
-    function renderEscrowVaults() {
-      const container = document.getElementById('escrowVaultsGrid');
-      container.innerHTML = customVaults.map(v => `
-        <div class="glass-slate-card rounded-2xl p-6 space-y-4 border border-white/10">
-          <div class="flex justify-between items-center">
-            <span class="text-base font-bold text-white">${v.name}</span>
-            <span class="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full text-[10px] font-bold">${v.status}</span>
-          </div>
-          <div class="text-2xl font-extrabold text-emerald-300 font-mono">$${v.amount.toLocaleString()} ${v.asset}</div>
-          <div class="text-xs text-slate-400 font-sans">Lockup Period: ${v.cliff_days} Days | Target Unlock: ${v.unlock_at}</div>
-        </div>
-      `).join('');
-    }
-
-    function openCreateVaultModal() {
-      const name = prompt("Enter Vault Name:", "Security Audit Escrow");
-      if (!name) return;
-      const amount = Number(prompt("Enter Escrow Deposit Amount:", "10000"));
-      const days = Number(prompt("Enter Cliff Days:", "30"));
-      if (!amount || !days) return;
-
-      customVaults.unshift({ id: Date.now(), name, asset: 'USDT', amount, unlock_at: '2026-11-30', cliff_days: days, status: 'LOCKED' });
-      renderEscrowVaults();
-      alert(`Escrow Vault "${name}" locked successfully.`);
-    }
-
-    function renderDao() {
-      document.getElementById('daoContainerBox').innerHTML = `
-        <h3 class="font-bold text-white text-base">DAO Treasury Governance Container</h3>
-        <div class="text-xs text-slate-300 font-sans">
-          Quorum Threshold: <strong class="text-white">${daoData.container.quorum}%</strong> | Timelock Delay: <strong class="text-white">${daoData.container.timelock_hours} Hours</strong>
-        </div>
-      `;
-
-      document.getElementById('daoProposalsList').innerHTML = daoData.proposals.map(p => `
-        <div class="p-4 bg-slate-950/60 rounded-xl border border-white/5 flex items-center justify-between font-mono">
-          <div>
-            <div class="text-brand-300 font-bold text-xs">${p.proposal_key} • ${p.title}</div>
-            <div class="text-slate-400 text-[11px] mt-1">Requested Grant: $${p.amount.toLocaleString()} ${p.asset}</div>
-          </div>
-          <div class="flex items-center space-x-3">
-            <span class="text-emerald-400">For: ${p.votes_for}</span>
-            <span class="text-rose-400">Against: ${p.votes_against}</span>
-            <button onclick="voteDao('${p.proposal_key}')" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded-lg text-xs font-bold cursor-pointer">
-              Vote FOR
-            </button>
-          </div>
-        </div>
-      `).join('');
-    }
-
-    function openCreateProposalModal() {
-      const title = prompt("Enter TIP Proposal Title:");
-      if (!title) return;
-      const amount = Number(prompt("Enter Requested Disbursement Amount:", "15000"));
-      if (!amount) return;
-
-      daoData.proposals.unshift({ proposal_key: `TIP-0${daoData.proposals.length + 1}`, title, amount, asset: 'USDC', votes_for: 1, votes_against: 0, status: 'ACTIVE' });
-      renderDao();
-      alert('Governance Proposal submitted successfully!');
-    }
-
-    function voteDao(key) {
-      const p = daoData.proposals.find(item => item.proposal_key === key);
-      if (p) {
-        p.votes_for += 1;
-        renderDao();
-        alert(`Affirmative vote cast for ${key}.`);
-      }
-    }
-
-    function openConfigureDaoModal() {
-      const q = prompt("Set New Quorum Percentage Threshold (1-100%):", "51.0");
-      if (q && !isNaN(q)) {
-        daoData.container.quorum = Number(q);
-        renderDao();
-        alert('DAO Container quorum updated.');
-      }
-    }
-
-    function renderReports() {
-      const tbody = document.getElementById('reportsTableBody');
-      tbody.innerHTML = activityLog.map((log, idx) => `
-        <tr class="hover:bg-white/5 transition">
-          <td class="py-3 px-4 font-mono text-[11px] text-brand-300">0x${(idx + 1) * 9823141}a...</td>
-          <td class="py-3 px-4 text-slate-400">${log.timestamp}</td>
-          <td class="py-3 px-4 text-white">${log.action}</td>
-          <td class="py-3 px-4 text-slate-400">${ZK_POOL_CONTRACT.slice(0, 10)}...</td>
-          <td class="py-3 px-4 text-slate-400">Payroll Roster</td>
-          <td class="py-3 px-4 font-bold text-emerald-300">$${log.amount}</td>
-          <td class="py-3 px-4 text-brand-300">${log.asset}</td>
-        </tr>
-      `).join('');
-    }
-
-    function exportCpaReport() {
-      let csv = "TxHash,Timestamp,Action,Asset,Amount,Status\n";
-      activityLog.forEach(a => {
-        csv += `0x9823...a,${a.timestamp},${a.action},${a.asset},${a.amount},${a.status}\n`;
-      });
-
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Terminull_Groth16_Audit_Report_${Date.now()}.csv`;
-      a.click();
-    }
-
-    function loadRoster() {
-      const tbody = document.getElementById('rosterTableBody');
-      tbody.innerHTML = employeesList.map(emp => `
-        <tr class="hover:bg-white/5 transition">
-          <td class="py-3 px-4 font-bold text-white">${emp.name}</td>
-          <td class="py-3 px-4 text-slate-300">${emp.rank_title}</td>
-          <td class="py-3 px-4 font-mono text-[11px] text-slate-400">${emp.wallet}</td>
-          <td class="py-3 px-4 text-brand-300 font-bold">${emp.asset}</td>
-          <td class="py-3 px-4 font-mono text-emerald-300">$${emp.salary.toLocaleString()}</td>
-          <td class="py-3 px-4"><span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[10px] font-bold">ACTIVE</span></td>
-        </tr>
-      `).join('');
-    }
-
-    function openAddEmployeeModal() {
-      const name = prompt("Enter contributor name:");
-      if (!name) return;
-      const salary = Number(prompt("Enter monthly salary:", "5000"));
-      if (!salary) return;
-
-      employeesList.push({ id: Date.now(), name, rank_title: 'Core Contributor', wallet: '0x' + Math.random().toString(16).slice(2, 10) + '...', salary, asset: 'USDT' });
-      renderPayroll();
-      loadRoster();
-    }
-
-    function loadAccounts() {
-      const container = document.getElementById('accountsContainer');
-      container.innerHTML = `
-        <div class="glass-slate-card rounded-2xl p-6 space-y-3 border border-white/10">
-          <div class="flex justify-between items-center text-slate-400 text-[10px] uppercase">
-            <span>ZK Shielded Pool (${ZK_POOL_CONTRACT.slice(0, 8)}...)</span>
-            <span class="text-emerald-300 font-bold">USDT / LUN</span>
-          </div>
-          <div class="text-2xl font-extrabold text-white font-mono">$${(privacyState.USDT.tier3 + privacyState.LUN.tier3 * 10).toLocaleString()}</div>
-          <div class="text-[11px] text-emerald-400">Groth16 Verifier: ${GROTH_VERIFIER_CONTRACT.slice(0, 10)}...</div>
-        </div>
-      `;
-    }
-
-    function copyOrgCode() {
-      navigator.clipboard.writeText(currentOrgSerial);
-      alert('Organisation serial key copied to clipboard.');
-    }
   </script>
 </body>
 </html>

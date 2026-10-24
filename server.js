@@ -2,27 +2,42 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const crypto = require('crypto');
+const fs = require('fs');
 const path = require('path');
+const solc = require('solc');
+const { ethers } = require('ethers');
 
 const app = express();
-const PORT = process.env.PORT || 4001;
-const db = new sqlite3.Database(path.join(__dirname, 'terminull.db'));
+const PORT = Number(process.env.PORT || 4001);
+const CHAIN_ID = 448000;
+const RPC_URL = process.env.RPC_URL || 'https://rpc.lunul.org';
+const USDT = ethers.getAddress(process.env.USDT_ADDRESS || '0x7ec3659A8225ED474D7c662126616aE08545C29b');
+const ZK_POOL = ethers.getAddress(process.env.ZK_POOL_ADDRESS || '0xC82681a28Bf26f6beb6b48442Ba9887a2872743B');
+const GROTH_VERIFIER = ethers.getAddress(process.env.GROTH_VERIFIER_ADDRESS || '0x39e1451944d2F71F586850f81c12E9A8DA5A73b0');
+const TOKEN_INTERFACE = new ethers.Interface([
+  'event Transfer(address indexed from, address indexed to, uint256 value)',
+  'function decimals() view returns (uint8)'
+]);
+const ESCROW_INTERFACE = new ethers.Interface([
+  'event EscrowCreated(uint256 indexed escrowId, bytes32 indexed invoiceId, address indexed supplier, address token, uint256 amount, uint64 refundAfter)',
+  'event EscrowReleased(uint256 indexed escrowId, address indexed supplier, uint256 amount)',
+  'event EscrowRefunded(uint256 indexed escrowId, address indexed company, uint256 amount)'
+]);
+const DAO_INTERFACE = new ethers.Interface([
+  'event ProposalExecuted(uint256 indexed proposalId)'
+]);
 
-app.use(cors());
-app.use(express.json({ limit: '1mb' }));
+const dbPath = process.env.DATA_DIR
+  ? path.join(process.env.DATA_DIR, 'terminull.sqlite')
+  : path.join(__dirname, 'terminull-data.sqlite');
+fs.mkdirSync(path.dirname(dbPath), { recursive:true });
+const db = new sqlite3.Database(dbPath);
+const provider = new ethers.JsonRpcProvider(RPC_URL, { chainId:CHAIN_ID, name:'lunul-poa' });
+const challenges = new Map();
+const tokenSecret = process.env.SESSION_SECRET || crypto.randomBytes(32);
 
-// 1. Root route serves the marketing landing page
-app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
-
-// 2. Application dashboard route serves the renamed backend UI
-app.get('/app', (_req, res) => res.sendFile(path.join(__dirname, 'app.html')));
-
-// 3. Alternative dashboard route alias
-app.get('/dashboard', (_req, res) => res.sendFile(path.join(__dirname, 'app.html')));
-
-app.use('/public', express.static(path.join(__dirname, 'public')));
-// Also serve static files from root so app.html can load relative assets if needed
-app.use(express.static(path.join(__dirname)));
+app.use(cors({ origin: process.env.APP_ORIGIN || false }));
+app.use(express.json({ limit: '2mb' }));
 
 const run = (sql, params = []) => new Promise((resolve, reject) => {
   db.run(sql, params, function (err) {
@@ -39,698 +54,848 @@ const all = (sql, params = []) => new Promise((resolve, reject) => {
 
 let transactionQueue = Promise.resolve();
 async function withTransaction(work) {
-  const previous = transactionQueue;
+  const prior = transactionQueue;
   let release;
   transactionQueue = new Promise(resolve => { release = resolve; });
-  await previous;
+  await prior;
   try {
     await run('BEGIN IMMEDIATE');
     const result = await work();
     await run('COMMIT');
     return result;
-  } catch (err) {
+  } catch (error) {
     await run('ROLLBACK');
-    throw err;
+    throw error;
   } finally {
     release();
   }
 }
 
-function requireText(value, label, maxLength = 200) {
-  if (typeof value !== 'string' || !value.trim() || value.trim().length > maxLength) {
-    const err = new Error(`${label} is required and must be at most ${maxLength} characters.`);
-    err.status = 400;
-    throw err;
+function fail(status, message) {
+  const error = new Error(message);
+  error.status = status;
+  throw error;
+}
+
+function requireText(value, label, max = 200) {
+  if (typeof value !== 'string' || !value.trim() || value.trim().length > max) {
+    fail(400, `${label} is required and must be at most ${max} characters.`);
   }
   return value.trim();
 }
 
-function requireAmount(value) {
-  const amount = Number(value);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    const err = new Error('Amount must be a positive number.');
-    err.status = 400;
-    throw err;
-  }
-  return amount;
-}
-
-function requireEvmAddress(value, label) {
+function requireWallet(value, label = 'Wallet address') {
   const address = requireText(value, label, 42);
-  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
-    const err = new Error(`${label} must be a 42-character EVM address.`);
-    err.status = 400;
-    throw err;
-  }
-  return address;
+  if (!ethers.isAddress(address)) fail(400, `${label} must be a valid EVM address.`);
+  return ethers.getAddress(address);
 }
 
-const ASSETS = {
-  USDC: { account: 'USDC Escrow Vault', initialBalance: 35000 },
-  USDT: { account: 'USDT Treasury Vault', initialBalance: 20000 },
-  LUN: { account: 'LUN Gas Reserve', initialBalance: 1250 },
-  USD: { account: 'Fiat Gateway Clearing', initialBalance: 0 }
-};
+function requireTokenAmount(value, label = 'Amount') {
+  if (typeof value !== 'string' && typeof value !== 'number') fail(400, `${label} must be a decimal amount.`);
+  const text = String(value).trim();
+  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/.test(text)) fail(400, `${label} must be a positive amount with at most 18 decimals.`);
+  let amount;
+  try {
+    amount = ethers.parseUnits(text, 18);
+  } catch {
+    fail(400, `${label} is invalid.`);
+  }
+  if (amount === 0n) fail(400, `${label} must be greater than zero.`);
+  return amount.toString();
+}
 
-async function ensureOrganization(serial) {
-  const org = await get('SELECT * FROM organizations WHERE serial = ?', [serial]);
-  if (!org) {
-    const err = new Error('Organization not found.');
-    err.status = 404;
-    throw err;
+function requireOrgSerial(value) {
+  return requireText(value, 'Company serial', 80);
+}
+
+function asyncRoute(handler) {
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+}
+
+function tokenFor(wallet) {
+  const payload = Buffer.from(JSON.stringify({
+    wallet,
+    expiresAt: Date.now() + 12 * 60 * 60 * 1000
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', tokenSecret).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function readToken(token) {
+  const [payload, signature] = String(token || '').split('.');
+  if (!payload || !signature) return null;
+  const expected = crypto.createHmac('sha256', tokenSecret).update(payload).digest();
+  let received;
+  try {
+    received = Buffer.from(signature, 'base64url');
+  } catch {
+    return null;
   }
-  for (const [asset, details] of Object.entries(ASSETS)) {
-    const initialBalance = asset === 'USDC' ? org.balance_usdc : asset === 'USDT' ? org.balance_usdt : details.initialBalance;
-    await run(
-      `INSERT OR IGNORE INTO accounts (org_serial, asset, account_name, balance)
-       VALUES (?, ?, ?, ?)`,
-      [serial, asset, details.account, initialBalance]
-    );
+  if (expected.length !== received.length || !crypto.timingSafeEqual(expected, received)) return null;
+  try {
+    const decoded = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return decoded.expiresAt > Date.now() ? decoded : null;
+  } catch {
+    return null;
   }
-  await run(`INSERT OR IGNORE INTO boltons (org_serial, module_key, module_name, is_active)
-    VALUES (?, 'multisig', 'Multi-Sig Quorum', 1)`, [serial]);
-  await run(`INSERT OR IGNORE INTO boltons (org_serial, module_key, module_name, is_active)
-    VALUES (?, 'tax', 'Statutory Tax Autocalc', 1)`, [serial]);
-  await run(`INSERT OR IGNORE INTO boltons (org_serial, module_key, module_name, is_active)
-    VALUES (?, 'geth', 'Geth RPC Validator Hook', 1)`, [serial]);
+}
+
+app.get('/', (_req, res) => res.sendFile('index.html', { root: __dirname }));
+app.get(['/app', '/dashboard'], (_req, res) => res.sendFile('app.html', { root: __dirname }));
+app.get('/public/ethers.umd.min.js', (_req, res) => res.sendFile('node_modules/ethers/dist/ethers.umd.min.js', { root: __dirname }));
+app.use('/public', express.static(path.join(__dirname, 'public')));
+
+app.get('/api/health', asyncRoute(async (_req, res) => {
+  const network = await provider.getNetwork();
+  const [code, poolCode, verifierCode] = await Promise.all([
+    provider.getCode(USDT),
+    provider.getCode(ZK_POOL),
+    provider.getCode(GROTH_VERIFIER)
+  ]);
+  if (Number(network.chainId) !== CHAIN_ID) fail(503, `RPC chain mismatch: expected ${CHAIN_ID}, received ${network.chainId}.`);
+  if (code === '0x') fail(503, 'Configured USDT contract has no bytecode on the configured network.');
+  if (poolCode === '0x' || verifierCode === '0x') fail(503, 'Configured pool or verifier has no bytecode on the configured network.');
+  const decimals = await new ethers.Contract(USDT, TOKEN_INTERFACE, provider).decimals();
+  if (Number(decimals) !== 18) fail(503, 'Configured USDT contract does not report 18 decimals.');
+  res.json({
+    chainId: Number(network.chainId),
+    rpcUrl: RPC_URL,
+    usdt: USDT,
+    decimals: Number(decimals),
+    pool: ZK_POOL,
+    verifier: GROTH_VERIFIER,
+    poolShieldingAvailable: false,
+    shieldDisabledReason: 'Pool commitment recovery and enforced proof verification are not configured.'
+  });
+}));
+
+app.post('/api/auth/challenge', asyncRoute(async (req, res) => {
+  const wallet = requireWallet(req.body.wallet);
+  const nonce = crypto.randomBytes(24).toString('hex');
+  const message = [
+    'Sign in to Terminull',
+    `Wallet: ${wallet}`,
+    `Nonce: ${nonce}`,
+    `Origin: ${req.get('origin') || req.get('host') || 'local'}`
+  ].join('\n');
+  challenges.set(wallet.toLowerCase(), { nonce, message, expiresAt: Date.now() + 5 * 60 * 1000 });
+  res.json({ message });
+}));
+
+app.post('/api/auth/verify', asyncRoute(async (req, res) => {
+  const wallet = requireWallet(req.body.wallet);
+  const challenge = challenges.get(wallet.toLowerCase());
+  if (!challenge || challenge.expiresAt < Date.now() || typeof req.body.signature !== 'string') {
+    fail(401, 'Sign-in challenge expired. Request a new one.');
+  }
+  challenges.delete(wallet.toLowerCase());
+  let recovered;
+  try {
+    recovered = ethers.verifyMessage(challenge.message, req.body.signature);
+  } catch {
+    fail(401, 'Wallet signature is invalid.');
+  }
+  if (recovered.toLowerCase() !== wallet.toLowerCase()) fail(401, 'Wallet signature does not match the connected address.');
+  res.json({ token: tokenFor(wallet), wallet, expiresIn: 12 * 60 * 60 });
+}));
+
+app.use('/api', (req, res, next) => {
+  if (req.path === '/auth/challenge' || req.path === '/auth/verify' || req.path === '/health') return next();
+  const auth = req.get('authorization') || '';
+  const session = auth.startsWith('Bearer ') ? readToken(auth.slice(7)) : null;
+  if (!session) return res.status(401).json({ error: 'Wallet sign-in is required.' });
+  req.wallet = ethers.getAddress(session.wallet);
+  next();
+});
+
+async function orgBySerial(serial) {
+  const org = await get('SELECT serial, name, owner_wallet, dao_address, escrow_address, created_at FROM organizations WHERE serial = ?', [serial]);
+  if (!org) fail(404, 'Company not found.');
   return org;
 }
 
-async function recordTransaction({ orgSerial, txType, amount, asset, status = 'COMPLETED', source = null, destination = null, memo = null }) {
-  const txHash = `0x${crypto.randomBytes(32).toString('hex')}`;
-  const result = await run(
-    `INSERT INTO transactions
-      (org_serial, tx_hash, account_name, tx_type, amount, asset, status, source_account, destination_account, memo)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [orgSerial, txHash, destination || source || `${asset} Account`, txType, amount, asset, status, source, destination, memo]
+async function rolesFor(wallet, serial) {
+  const lower = wallet.toLowerCase();
+  const roles = [];
+  const owner = await get('SELECT serial FROM organizations WHERE serial = ? AND lower(owner_wallet) = ?', [serial, lower]);
+  if (owner) roles.push('owner');
+  const employee = await get('SELECT id FROM employees WHERE org_serial = ? AND lower(wallet) = ? AND status = \'ACTIVE\'', [serial, lower]);
+  if (employee) roles.push('employee');
+  const supplier = await get(
+    `SELECT id FROM vendors WHERE org_serial = ? AND lower(wallet) = ? AND status = 'ACTIVE'
+     UNION ALL SELECT id FROM invoices WHERE org_serial = ? AND lower(supplier_wallet) = ? LIMIT 1`,
+    [serial, lower, serial, lower]
   );
-  return { id: result.lastID, tx_hash: txHash };
+  if (supplier) roles.push('supplier');
+  return roles;
 }
 
-async function initializeDatabase() {
-  await run(`CREATE TABLE IF NOT EXISTS organizations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    serial TEXT UNIQUE,
-    name TEXT,
-    owner_wallet TEXT UNIQUE,
-    balance_usdc REAL DEFAULT 35000.0,
-    balance_usdt REAL DEFAULT 20000.0,
-    deposit_wallet_usdc TEXT,
-    deposit_wallet_usdt TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await run(`CREATE TABLE IF NOT EXISTS employees (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_serial TEXT,
-    name TEXT,
-    wallet TEXT,
-    rank_title TEXT,
-    salary REAL,
-    status TEXT DEFAULT 'ACTIVE',
-    asset TEXT DEFAULT 'USDC',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await run(`CREATE TABLE IF NOT EXISTS vendors (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_serial TEXT,
-    company_name TEXT,
-    contact_email TEXT,
-    wallet TEXT,
-    sector TEXT,
-    department TEXT,
-    payment_terms TEXT,
-    multisig_rule TEXT,
-    status TEXT DEFAULT 'PENDING',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await run(`CREATE TABLE IF NOT EXISTS boltons (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_serial TEXT,
-    module_key TEXT,
-    module_name TEXT,
-    is_active INTEGER DEFAULT 1,
-    config_json TEXT,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(org_serial, module_key)
-  )`);
-  await run(`CREATE TABLE IF NOT EXISTS accounts (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_serial TEXT NOT NULL,
-    asset TEXT NOT NULL,
-    account_name TEXT NOT NULL,
-    balance REAL NOT NULL DEFAULT 0,
-    UNIQUE(org_serial, asset)
-  )`);
-  await run(`CREATE TABLE IF NOT EXISTS transactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_serial TEXT,
-    tx_hash TEXT,
-    account_name TEXT,
-    tx_type TEXT,
-    amount REAL,
-    asset TEXT,
-    status TEXT,
-    source_account TEXT,
-    destination_account TEXT,
-    memo TEXT,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await run(`CREATE TABLE IF NOT EXISTS organization_profiles (
-    org_serial TEXT PRIMARY KEY,
-    country TEXT NOT NULL DEFAULT 'CHE',
-    registration_id TEXT NOT NULL DEFAULT 'CHE-482.910.339',
-    ubo_name TEXT NOT NULL DEFAULT 'Alexander von Lunul',
-    ubo_role TEXT NOT NULL DEFAULT 'Master Admin',
-    tax_id TEXT NOT NULL DEFAULT 'CH482910339',
-    withholding_rate REAL NOT NULL DEFAULT 18.5,
-    auditor TEXT NOT NULL DEFAULT 'KPMG Zug',
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await run(`CREATE TABLE IF NOT EXISTS dao_containers (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_serial TEXT NOT NULL UNIQUE,
-    name TEXT NOT NULL,
-    quorum REAL NOT NULL,
-    timelock_hours INTEGER NOT NULL,
-    token_address TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-  await run(`CREATE TABLE IF NOT EXISTS dao_proposals (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_serial TEXT NOT NULL,
-    proposal_key TEXT NOT NULL,
-    title TEXT NOT NULL,
-    asset TEXT NOT NULL,
-    amount REAL NOT NULL,
-    recipient TEXT NOT NULL,
-    description TEXT NOT NULL DEFAULT '',
-    status TEXT NOT NULL DEFAULT 'ACTIVE',
-    votes_for REAL NOT NULL DEFAULT 0,
-    votes_against REAL NOT NULL DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    executed_at DATETIME,
-    UNIQUE(org_serial, proposal_key)
-  )`);
-  await run(`CREATE TABLE IF NOT EXISTS dao_votes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    proposal_id INTEGER NOT NULL,
-    voter_wallet TEXT NOT NULL,
-    vote TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(proposal_id, voter_wallet)
-  )`);
-  await run(`CREATE TABLE IF NOT EXISTS escrow_vaults (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_serial TEXT NOT NULL,
-    name TEXT NOT NULL,
-    asset TEXT NOT NULL,
-    amount REAL NOT NULL,
-    deposit_address TEXT NOT NULL,
-    cliff_days INTEGER NOT NULL,
-    unlock_at DATETIME NOT NULL,
-    status TEXT NOT NULL DEFAULT 'LOCKED',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-
-  await ensureColumn('employees', 'asset', "TEXT DEFAULT 'USDC'");
-  await ensureColumn('transactions', 'source_account', 'TEXT');
-  await ensureColumn('transactions', 'destination_account', 'TEXT');
-  await ensureColumn('transactions', 'memo', 'TEXT');
-  await run(`DELETE FROM boltons WHERE id NOT IN (
-    SELECT MIN(id) FROM boltons GROUP BY org_serial, module_key
-  )`);
-  await run('CREATE UNIQUE INDEX IF NOT EXISTS idx_boltons_org_module ON boltons(org_serial, module_key)');
-
-  const organizations = await all('SELECT serial FROM organizations');
-  for (const org of organizations) {
-    await ensureOrganization(org.serial);
-    await run('INSERT OR IGNORE INTO organization_profiles (org_serial) VALUES (?)', [org.serial]);
-  }
+async function requireRole(wallet, serial, allowed) {
+  const roles = await rolesFor(wallet, serial);
+  if (!roles.some(role => allowed.includes(role))) fail(403, 'Your connected wallet does not have permission for this company action.');
+  return roles;
 }
 
-async function ensureColumn(table, column, definition) {
-  const columns = await all(`PRAGMA table_info(${table})`);
-  if (!columns.some(item => item.name === column)) {
-    await run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
+async function getSession(wallet) {
+  const companies = await all(
+    'SELECT serial, name, dao_address, escrow_address FROM organizations WHERE lower(owner_wallet) = ? ORDER BY created_at DESC',
+    [wallet.toLowerCase()]
+  );
+  const employeeRows = await all(
+    `SELECT e.org_serial AS serial, o.name AS company_name, e.id, e.name, e.title, e.salary_raw, e.status
+     FROM employees e JOIN organizations o ON o.serial = e.org_serial
+     WHERE lower(e.wallet) = ? AND e.status = 'ACTIVE' ORDER BY o.name`,
+    [wallet.toLowerCase()]
+  );
+  const supplierRows = await all(
+    `SELECT v.org_serial AS serial, o.name AS company_name, v.id, v.name, v.status
+     FROM vendors v JOIN organizations o ON o.serial = v.org_serial
+     WHERE lower(v.wallet) = ? AND v.status = 'ACTIVE' ORDER BY o.name`,
+    [wallet.toLowerCase()]
+  );
+  const invoiceRows = await all(
+    `SELECT DISTINCT i.org_serial AS serial, o.name AS company_name
+     FROM invoices i JOIN organizations o ON o.serial = i.org_serial
+     WHERE lower(i.supplier_wallet) = ? ORDER BY o.name`,
+    [wallet.toLowerCase()]
+  );
+  return { wallet, companies, employeeRows, supplierRows, invoiceRows };
 }
 
-app.post('/api/auth', async (req, res) => {
-  const wallet = requireEvmAddress(req.body.wallet, 'Wallet address');
-  const org = await get('SELECT serial, name FROM organizations WHERE lower(owner_wallet) = lower(?)', [wallet]);
-  res.json(org
-    ? { wallet, org_serial: org.serial, org_name: org.name }
-    : { wallet, nickname: req.body.nickname || null, org_serial: null });
-});
+app.get('/api/session', asyncRoute(async (req, res) => {
+  res.json(await getSession(req.wallet));
+}));
 
-app.post('/api/org/register', async (req, res) => {
-  const wallet = requireEvmAddress(req.body.wallet, 'Wallet address');
-  const orgName = requireText(req.body.orgName, 'Organization name');
-  let org = await get('SELECT serial, deposit_wallet_usdc, deposit_wallet_usdt FROM organizations WHERE lower(owner_wallet) = lower(?)', [wallet]);
-  if (!org) {
-    const serial = `TERM-ORG-${crypto.randomBytes(4).toString('hex').toUpperCase()}-${Date.now().toString().slice(-4)}`;
-    const depositUsdc = `0x${crypto.randomBytes(20).toString('hex')}`;
-    const depositUsdt = `0x${crypto.randomBytes(20).toString('hex')}`;
-    await withTransaction(async () => {
-      await run(
-        `INSERT INTO organizations (serial, name, owner_wallet, balance_usdc, balance_usdt, deposit_wallet_usdc, deposit_wallet_usdt)
-         VALUES (?, ?, ?, 35000, 20000, ?, ?)`,
-        [serial, orgName, wallet, depositUsdc, depositUsdt]
-      );
-      await ensureOrganization(serial);
-      await run('INSERT INTO organization_profiles (org_serial) VALUES (?)', [serial]);
-    });
-    org = { serial, deposit_wallet_usdc: depositUsdc, deposit_wallet_usdt: depositUsdt };
-  } else {
-    await ensureOrganization(org.serial);
-  }
-  res.json({ success: true, ...org });
-});
-
-app.get('/api/org/:serial', async (req, res) => {
-  const org = await ensureOrganization(req.params.serial);
-  const accounts = await all('SELECT asset, balance FROM accounts WHERE org_serial = ?', [org.serial]);
-  const balances = Object.fromEntries(accounts.map(account => [account.asset, account.balance]));
-  res.json({ ...org, balance_usdc: balances.USDC, balance_usdt: balances.USDT, balances });
-});
-
-app.get('/api/org/:serial/profile', async (req, res) => {
-  await ensureOrganization(req.params.serial);
-  await run('INSERT OR IGNORE INTO organization_profiles (org_serial) VALUES (?)', [req.params.serial]);
-  res.json(await get('SELECT * FROM organization_profiles WHERE org_serial = ?', [req.params.serial]));
-});
-
-app.put('/api/org/:serial/profile', async (req, res) => {
-  await ensureOrganization(req.params.serial);
-  const { country, registrationId, uboName, uboRole, taxId, withholdingRate, auditor } = req.body;
-  const rate = Number(withholdingRate);
-  if (!Number.isFinite(rate) || rate < 0 || rate > 100) {
-    return res.status(400).json({ error: 'Withholding rate must be between 0 and 100.' });
-  }
-  const orgName = requireText(req.body.orgName, 'Organization name');
-  await run(
-    `INSERT INTO organization_profiles
-      (org_serial, country, registration_id, ubo_name, ubo_role, tax_id, withholding_rate, auditor, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-     ON CONFLICT(org_serial) DO UPDATE SET country=excluded.country, registration_id=excluded.registration_id,
-       ubo_name=excluded.ubo_name, ubo_role=excluded.ubo_role, tax_id=excluded.tax_id,
-       withholding_rate=excluded.withholding_rate, auditor=excluded.auditor, updated_at=CURRENT_TIMESTAMP`,
-    [
-      req.params.serial,
-      requireText(country, 'Country', 3),
-      requireText(registrationId, 'Registration ID', 100),
-      requireText(uboName, 'UBO name'),
-      requireText(uboRole, 'UBO role'),
-      requireText(taxId, 'Tax ID', 100),
-      rate,
-      requireText(auditor, 'Auditor')
-    ]
+app.post('/api/join-requests', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.body.serial);
+  await orgBySerial(serial);
+  const requestedRole = req.body.role;
+  if (!['employee', 'supplier'].includes(requestedRole)) fail(400, 'Role must be employee or supplier.');
+  if ((await rolesFor(req.wallet, serial)).length) fail(409, 'This wallet already has a company role.');
+  const name = requireText(req.body.name, 'Name');
+  const title = requestedRole === 'employee' ? requireText(req.body.title, 'Title', 100) : '';
+  const salaryRaw = requestedRole === 'employee' ? requireTokenAmount(String(req.body.salary), 'Salary') : '';
+  const email = requestedRole === 'supplier' && req.body.email ? requireText(req.body.email, 'Email', 200) : '';
+  const pending = await get(
+    `SELECT id FROM join_requests WHERE org_serial = ? AND lower(wallet) = ? AND requested_role = ? AND status = 'PENDING'`,
+    [serial, req.wallet.toLowerCase(), requestedRole]
   );
-  await run('UPDATE organizations SET name = ? WHERE serial = ?', [orgName, req.params.serial]);
-  res.json(await get('SELECT * FROM organization_profiles WHERE org_serial = ?', [req.params.serial]));
-});
-
-app.get('/api/accounts/:serial', async (req, res) => {
-  await ensureOrganization(req.params.serial);
-  res.json(await all('SELECT asset, account_name, balance FROM accounts WHERE org_serial = ? ORDER BY id', [req.params.serial]));
-});
-
-app.post('/api/accounts/transfer', async (req, res) => {
-  const { orgSerial, sourceAsset, destinationAsset, memo } = req.body;
-  const amount = requireAmount(req.body.amount);
-  if (!ASSETS[sourceAsset] || !ASSETS[destinationAsset]) return res.status(400).json({ error: 'Unsupported account asset.' });
-  if (sourceAsset !== destinationAsset) return res.status(400).json({ error: 'Cross-asset transfers require an exchange rate and are not supported.' });
-  if (req.body.sourceAccount === req.body.destinationAccount) return res.status(400).json({ error: 'Choose different source and destination accounts.' });
-  const org = await ensureOrganization(orgSerial);
-  const source = requireText(req.body.sourceAccount, 'Source account');
-  const destination = requireText(req.body.destinationAccount, 'Destination account');
-  if (ASSETS[sourceAsset].account !== source || ASSETS[destinationAsset].account !== destination) {
-    return res.status(400).json({ error: 'Account-to-account transfers are not configured for these ledger accounts.' });
-  }
-  await withTransaction(async () => {
-    const account = await get('SELECT balance FROM accounts WHERE org_serial = ? AND asset = ?', [org.serial, sourceAsset]);
-    if (!account || account.balance < amount) {
-      const err = new Error('Insufficient account balance.');
-      err.status = 400;
-      throw err;
-    }
-    await run('UPDATE accounts SET balance = balance - ? WHERE org_serial = ? AND asset = ?', [amount, org.serial, sourceAsset]);
-    await run('UPDATE accounts SET balance = balance + ? WHERE org_serial = ? AND asset = ?', [amount, org.serial, destinationAsset]);
-    await syncLegacyBalances(org.serial);
-    await recordTransaction({ orgSerial: org.serial, txType: 'Internal Transfer', amount, asset: sourceAsset, source, destination, memo: memo || null });
-  });
-  res.json({ success: true, accounts: await all('SELECT asset, account_name, balance FROM accounts WHERE org_serial = ?', [org.serial]) });
-});
-
-app.post('/api/accounts/deposit', async (req, res) => {
-  const { orgSerial, asset } = req.body;
-  const amount = requireAmount(req.body.amount);
-  if (!['USDC', 'USDT'].includes(asset)) return res.status(400).json({ error: 'Deposits are only supported for USDC and USDT.' });
-  const org = await ensureOrganization(orgSerial);
-  await withTransaction(async () => {
-    await run('UPDATE accounts SET balance = balance + ? WHERE org_serial = ? AND asset = ?', [amount, org.serial, asset]);
-    await syncLegacyBalances(org.serial);
-    await recordTransaction({ orgSerial: org.serial, txType: 'External Deposit', amount, asset, source: 'External Deposit', destination: ASSETS[asset].account });
-  });
-  res.json({ success: true, accounts: await all('SELECT asset, account_name, balance FROM accounts WHERE org_serial = ?', [org.serial]) });
-});
-
-app.post('/api/accounts/withdraw', async (req, res) => {
-  const { orgSerial, asset } = req.body;
-  const amount = requireAmount(req.body.amount);
-  if (!['USDC', 'USDT'].includes(asset)) return res.status(400).json({ error: 'Withdrawals are only supported for USDC and USDT.' });
-  const org = await ensureOrganization(orgSerial);
-  await withTransaction(async () => {
-    const account = await get('SELECT balance FROM accounts WHERE org_serial = ? AND asset = ?', [org.serial, asset]);
-    if (!account || account.balance < amount) {
-      const err = new Error('Insufficient account balance.');
-      err.status = 400;
-      throw err;
-    }
-    await run('UPDATE accounts SET balance = balance - ? WHERE org_serial = ? AND asset = ?', [amount, org.serial, asset]);
-    await syncLegacyBalances(org.serial);
-    await recordTransaction({ orgSerial: org.serial, txType: 'Withdrawal', amount, asset, source: ASSETS[asset].account, destination: 'External Wallet' });
-  });
-  res.json({ success: true, accounts: await all('SELECT asset, account_name, balance FROM accounts WHERE org_serial = ?', [org.serial]) });
-});
-
-async function syncLegacyBalances(serial) {
-  await run(
-    `UPDATE organizations SET
-      balance_usdc = (SELECT balance FROM accounts WHERE org_serial = ? AND asset = 'USDC'),
-      balance_usdt = (SELECT balance FROM accounts WHERE org_serial = ? AND asset = 'USDT')
-     WHERE serial = ?`,
-    [serial, serial, serial]
-  );
-}
-
-app.get('/api/employees/:serial', async (req, res) => {
-  await ensureOrganization(req.params.serial);
-  res.json(await all('SELECT * FROM employees WHERE org_serial = ? ORDER BY id DESC', [req.params.serial]));
-});
-
-app.post('/api/employees/add', async (req, res) => {
-  const { orgSerial, wallet, rankTitle, salary, asset } = req.body;
-  const org = await ensureOrganization(orgSerial);
-  const name = requireText(req.body.name, 'Employee name');
-  const amount = requireAmount(salary);
-  const currency = asset || 'USDC';
-  if (!['USDC', 'USDT'].includes(currency)) return res.status(400).json({ error: 'Employee asset must be USDC or USDT.' });
-  const targetWallet = wallet ? requireText(wallet, 'Wallet address', 100) : `0x${crypto.randomBytes(20).toString('hex')}`;
+  if (pending) fail(409, 'A pending request for this company and role already exists.');
   const result = await run(
-    `INSERT INTO employees (org_serial, name, wallet, rank_title, salary, asset) VALUES (?, ?, ?, ?, ?, ?)`,
-    [org.serial, name, targetWallet, (rankTitle || 'Team Member').trim(), amount, currency]
-  );
-  res.json({ success: true, id: result.lastID, generated_wallet: targetWallet });
-});
-
-app.get('/api/vendors/:serial', async (req, res) => {
-  await ensureOrganization(req.params.serial);
-  res.json(await all('SELECT * FROM vendors WHERE org_serial = ? ORDER BY id DESC', [req.params.serial]));
-});
-
-app.post('/api/vendors/add', async (req, res) => {
-  const { orgSerial, companyName, contactEmail, wallet, sector, department, paymentTerms, multisigRule } = req.body;
-  const org = await ensureOrganization(orgSerial);
-  const name = requireText(companyName, 'Company name');
-  const targetWallet = wallet ? requireText(wallet, 'Wallet address', 100) : `0x${crypto.randomBytes(20).toString('hex')}`;
-  const result = await run(
-    `INSERT INTO vendors (org_serial, company_name, contact_email, wallet, sector, department, payment_terms, multisig_rule, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')`,
-    [org.serial, name, contactEmail || '', targetWallet, sector || '', department || '', paymentTerms || '', multisigRule || '']
-  );
-  res.json({ success: true, id: result.lastID, generated_wallet: targetWallet });
-});
-
-app.get('/api/boltons/:serial', async (req, res) => {
-  await ensureOrganization(req.params.serial);
-  res.json(await all('SELECT * FROM boltons WHERE org_serial = ? ORDER BY module_key', [req.params.serial]));
-});
-
-app.post('/api/boltons/toggle', async (req, res) => {
-  const { orgSerial, moduleKey, moduleName, config } = req.body;
-  const org = await ensureOrganization(orgSerial);
-  const key = requireText(moduleKey, 'Module key', 80);
-  const row = await get('SELECT * FROM boltons WHERE org_serial = ? AND module_key = ?', [org.serial, key]);
-  const isActive = typeof req.body.isActive === 'boolean'
-    ? Number(req.body.isActive)
-    : row ? (row.is_active ? 0 : 1) : 1;
-  if (row) {
-    await run(
-      `UPDATE boltons SET module_name = ?, is_active = ?, config_json = COALESCE(?, config_json),
-       updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      [moduleName || row.module_name || key, isActive, config ? JSON.stringify(config) : null, row.id]
-    );
-  } else {
-    await run(
-      `INSERT INTO boltons (org_serial, module_key, module_name, is_active, config_json)
-       VALUES (?, ?, ?, ?, ?)`,
-      [org.serial, key, moduleName || key, isActive, config ? JSON.stringify(config) : null]
-    );
-  }
-  res.json({ success: true, is_active: isActive });
-});
-
-app.post('/api/payroll/execute', async (req, res) => {
-  const { orgSerial, asset = 'USDC' } = req.body;
-  if (!['USDC', 'USDT'].includes(asset)) return res.status(400).json({ error: 'Payroll asset must be USDC or USDT.' });
-  const org = await ensureOrganization(orgSerial);
-  let result;
-  await withTransaction(async () => {
-    const employees = await all(
-      `SELECT id, wallet, salary FROM employees
-       WHERE org_serial = ? AND status = 'ACTIVE' AND asset = ?`,
-      [org.serial, asset]
-    );
-    let total = 0;
-    if (Array.isArray(req.body.allocations)) {
-      if (req.body.allocations.length !== employees.length || employees.length === 0) {
-        const err = new Error('Payroll manifest must include every active recipient for the selected asset.');
-        err.status = 400;
-        throw err;
-      }
-      const employeeByWallet = new Map(employees.map(employee => [employee.wallet.toLowerCase(), employee]));
-      const seenWallets = new Set();
-      for (const allocation of req.body.allocations) {
-        const wallet = typeof allocation.wallet === 'string' ? allocation.wallet.toLowerCase() : '';
-        const employee = employeeByWallet.get(wallet);
-        const amount = Number(allocation.amount);
-        if (!employee || seenWallets.has(wallet) || !Number.isFinite(amount) || amount <= 0) {
-          const err = new Error('Payroll manifest has an unknown recipient or invalid amount.');
-          err.status = 400;
-          throw err;
-        }
-        seenWallets.add(wallet);
-        total += amount;
-      }
-    } else {
-      total = employees.reduce((sum, employee) => sum + Number(employee.salary || 0), 0);
-    }
-    if (!employees.length || total <= 0) {
-      const err = new Error(`No active ${asset} payroll recipients are available.`);
-      err.status = 400;
-      throw err;
-    }
-    const account = await get('SELECT balance FROM accounts WHERE org_serial = ? AND asset = ?', [org.serial, asset]);
-    if (!account || account.balance < total) {
-      const err = new Error('Insufficient escrow vault balance for batch disbursement.');
-      err.status = 400;
-      throw err;
-    }
-    await run('UPDATE accounts SET balance = balance - ? WHERE org_serial = ? AND asset = ?', [total, org.serial, asset]);
-    await syncLegacyBalances(org.serial);
-    const tx = await recordTransaction({
-      orgSerial: org.serial, txType: 'Batch Payroll Disbursement', amount: total,
-      asset, source: ASSETS[asset].account, destination: 'Active Employee Roster',
-      memo: `${employees.length} employee payroll payments`
-    });
-    result = { ...tx, total_amount: total, recipients: employees.length, remaining_balance: account.balance - total };
-  });
-  res.json({ success: true, ...result });
-});
-
-app.get('/api/transactions/:serial', async (req, res) => {
-  await ensureOrganization(req.params.serial);
-  res.json(await all('SELECT * FROM transactions WHERE org_serial = ? ORDER BY timestamp DESC, id DESC', [req.params.serial]));
-});
-
-app.get('/api/vaults/:serial', async (req, res) => {
-  const org = await ensureOrganization(req.params.serial);
-  const accounts = await all(
-    `SELECT a.asset, a.account_name, a.balance,
-      CASE a.asset WHEN 'USDC' THEN o.deposit_wallet_usdc WHEN 'USDT' THEN o.deposit_wallet_usdt ELSE NULL END AS deposit_address
-     FROM accounts a JOIN organizations o ON o.serial = a.org_serial
-     WHERE a.org_serial = ? AND a.asset IN ('USDC', 'USDT', 'LUN') ORDER BY a.id`,
-    [org.serial]
-  );
-  const customVaults = await all('SELECT * FROM escrow_vaults WHERE org_serial = ? ORDER BY id DESC', [org.serial]);
-  res.json({ accounts, vaults: customVaults });
-});
-
-app.post('/api/vaults', async (req, res) => {
-  const org = await ensureOrganization(req.body.orgSerial);
-  const name = requireText(req.body.name, 'Vault name');
-  const asset = req.body.asset;
-  const amount = requireAmount(req.body.amount);
-  const cliffDays = Number(req.body.cliffDays);
-  if (!['USDC', 'USDT', 'LUN'].includes(asset)) return res.status(400).json({ error: 'Unsupported vault asset.' });
-  if (!Number.isInteger(cliffDays) || cliffDays < 1 || cliffDays > 3650) {
-    return res.status(400).json({ error: 'Vault lockup must be between 1 and 3650 days.' });
-  }
-  if (!ASSETS[asset]) return res.status(400).json({ error: 'Unsupported account asset.' });
-  const depositAddress = `0x${crypto.randomBytes(20).toString('hex')}`;
-  let id;
-  await withTransaction(async () => {
-    const account = await get('SELECT balance FROM accounts WHERE org_serial = ? AND asset = ?', [org.serial, asset]);
-    if (!account || account.balance < amount) {
-      const err = new Error('Insufficient available account balance to fund this vault.');
-      err.status = 400;
-      throw err;
-    }
-    await run('UPDATE accounts SET balance = balance - ? WHERE org_serial = ? AND asset = ?', [amount, org.serial, asset]);
-    await syncLegacyBalances(org.serial);
-    const created = await run(
-      `INSERT INTO escrow_vaults (org_serial, name, asset, amount, deposit_address, cliff_days, unlock_at)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now', ?))`,
-      [org.serial, name, asset, amount, depositAddress, cliffDays, `+${cliffDays} days`]
-    );
-    id = created.lastID;
-    await recordTransaction({
-      orgSerial: org.serial, txType: 'Time-Locked Vault Funding', amount, asset,
-      source: ASSETS[asset].account, destination: name, memo: `${cliffDays}-day lockup`
-    });
-  });
-  res.json({ success: true, vault: await get('SELECT * FROM escrow_vaults WHERE id = ?', [id]) });
-});
-
-app.get('/api/dao/:serial', async (req, res) => {
-  await ensureOrganization(req.params.serial);
-  res.json({
-    container: await get('SELECT * FROM dao_containers WHERE org_serial = ?', [req.params.serial]) || null,
-    proposals: await all('SELECT * FROM dao_proposals WHERE org_serial = ? ORDER BY id DESC', [req.params.serial])
-  });
-});
-
-app.post('/api/dao/container', async (req, res) => {
-  const org = await ensureOrganization(req.body.orgSerial);
-  const name = requireText(req.body.name, 'DAO name');
-  const quorum = Number(req.body.quorum);
-  const timelockHours = Number(req.body.timelockHours);
-  if (!Number.isFinite(quorum) || quorum <= 0 || quorum > 100 || !Number.isInteger(timelockHours) || timelockHours < 0) {
-    return res.status(400).json({ error: 'Quorum must be between 0 and 100 and timelock must be a non-negative whole number.' });
-  }
-  const tokenAddress = req.body.tokenAddress ? requireEvmAddress(req.body.tokenAddress, 'Governance token address') : null;
-  await run(
-    `INSERT INTO dao_containers (org_serial, name, quorum, timelock_hours, token_address)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(org_serial) DO UPDATE SET name=excluded.name, quorum=excluded.quorum,
-       timelock_hours=excluded.timelock_hours, token_address=excluded.token_address`,
-    [org.serial, name, quorum, timelockHours, tokenAddress]
-  );
-  res.json({ success: true, container: await get('SELECT * FROM dao_containers WHERE org_serial = ?', [org.serial]) });
-});
-
-app.post('/api/dao/proposals', async (req, res) => {
-  const org = await ensureOrganization(req.body.orgSerial);
-  const container = await get('SELECT id FROM dao_containers WHERE org_serial = ?', [org.serial]);
-  if (!container) return res.status(400).json({ error: 'Initialize the DAO container before creating proposals.' });
-  const title = requireText(req.body.title, 'Proposal title');
-  const asset = req.body.asset;
-  const amount = requireAmount(req.body.amount);
-  if (!['USDC', 'USDT'].includes(asset)) return res.status(400).json({ error: 'Proposal asset must be USDC or USDT.' });
-  const recipient = requireEvmAddress(req.body.recipient, 'Recipient wallet');
-  const last = await get('SELECT proposal_key FROM dao_proposals WHERE org_serial = ? ORDER BY id DESC LIMIT 1', [org.serial]);
-  const nextNumber = last ? Number((last.proposal_key.match(/\d+$/) || [0])[0]) + 1 : 1;
-  const proposalKey = `TIP-${String(nextNumber).padStart(2, '0')}`;
-  const result = await run(
-    `INSERT INTO dao_proposals (org_serial, proposal_key, title, asset, amount, recipient, description)
+    `INSERT INTO join_requests (org_serial, wallet, requested_role, name, title, salary_raw, contact_email)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [org.serial, proposalKey, title, asset, amount, recipient, req.body.description || '']
+    [serial, req.wallet, requestedRole, name, title, salaryRaw, email]
   );
-  res.json({ success: true, id: result.lastID, proposal_key: proposalKey });
-});
+  res.status(201).json({ success: true, requestId: result.lastID });
+}));
 
-app.post('/api/dao/proposals/:proposalKey/vote', async (req, res) => {
-  const org = await ensureOrganization(req.body.orgSerial);
-  const voter = requireText(req.body.wallet, 'Voter wallet', 100);
-  const vote = req.body.vote;
-  if (!['FOR', 'AGAINST'].includes(vote)) return res.status(400).json({ error: 'Vote must be FOR or AGAINST.' });
-  const proposal = await get('SELECT * FROM dao_proposals WHERE org_serial = ? AND proposal_key = ?', [org.serial, req.params.proposalKey]);
-  if (!proposal || proposal.status !== 'ACTIVE') return res.status(404).json({ error: 'Active proposal not found.' });
+app.get('/api/org/:serial/join-requests', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  res.json(await all(
+    `SELECT id, wallet, requested_role, name, title, salary_raw, contact_email, status, created_at
+     FROM join_requests WHERE org_serial = ? AND status = 'PENDING' ORDER BY created_at, id`,
+    [serial]
+  ));
+}));
+
+app.post('/api/org/:serial/join-requests/:id/approve', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await requireRole(req.wallet, serial, ['owner']);
   await withTransaction(async () => {
-    const existingVote = await get('SELECT id FROM dao_votes WHERE proposal_id = ? AND voter_wallet = ?', [proposal.id, voter.toLowerCase()]);
-    if (existingVote) {
-      const err = new Error('This wallet has already voted on the proposal.');
-      err.status = 409;
-      throw err;
-    }
-    await run('INSERT INTO dao_votes (proposal_id, voter_wallet, vote) VALUES (?, ?, ?)', [proposal.id, voter.toLowerCase(), vote]);
-    await run(
-      `UPDATE dao_proposals SET votes_for = votes_for + ?, votes_against = votes_against + ? WHERE id = ?`,
-      [vote === 'FOR' ? 1 : 0, vote === 'AGAINST' ? 1 : 0, proposal.id]
+    const request = await get(
+      `SELECT * FROM join_requests WHERE id = ? AND org_serial = ? AND status = 'PENDING'`,
+      [Number(req.params.id), serial]
     );
+    if (!request) fail(404, 'Pending join request not found.');
+    if (request.requested_role === 'employee') {
+      await run(
+        'INSERT INTO employees (org_serial, name, wallet, title, salary_raw) VALUES (?, ?, ?, ?, ?)',
+        [serial, request.name, request.wallet, request.title, request.salary_raw]
+      );
+    } else {
+      await run(
+        'INSERT INTO vendors (org_serial, name, contact_email, wallet) VALUES (?, ?, ?, ?)',
+        [serial, request.name, request.contact_email, request.wallet]
+      );
+    }
+    await run("UPDATE join_requests SET status = 'APPROVED' WHERE id = ?", [request.id]);
   });
   res.json({ success: true });
-});
+}));
 
-app.post('/api/dao/proposals/:proposalKey/execute', async (req, res) => {
-  const org = await ensureOrganization(req.body.orgSerial);
-  let tx;
-  await withTransaction(async () => {
-    const proposal = await get('SELECT * FROM dao_proposals WHERE org_serial = ? AND proposal_key = ?', [org.serial, req.params.proposalKey]);
-    if (!proposal || proposal.status !== 'ACTIVE') {
-      const err = new Error('Active proposal not found.');
-      err.status = 404;
-      throw err;
+app.post('/api/org/:serial/join-requests/:id/reject', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  const result = await run(
+    "UPDATE join_requests SET status = 'REJECTED' WHERE id = ? AND org_serial = ? AND status = 'PENDING'",
+    [Number(req.params.id), serial]
+  );
+  if (!result.changes) fail(404, 'Pending join request not found.');
+  res.json({ success: true });
+}));
+
+app.post('/api/org/register', asyncRoute(async (req, res) => {
+  const name = requireText(req.body.name, 'Company name');
+  const existing = await get('SELECT serial, name FROM organizations WHERE lower(owner_wallet) = ?', [req.wallet.toLowerCase()]);
+  if (existing) return res.json({ success: true, company: existing });
+  const serial = `TERM-${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+  await run(
+    'INSERT INTO organizations (serial, name, owner_wallet) VALUES (?, ?, ?)',
+    [serial, name, req.wallet]
+  );
+  res.status(201).json({ success: true, company: { serial, name, owner_wallet: req.wallet, dao_address: null, escrow_address: null } });
+}));
+
+app.get('/api/org/:serial', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  const roles = await requireRole(req.wallet, serial, ['owner', 'employee', 'supplier']);
+  const org = await orgBySerial(serial);
+  res.json({ ...org, roles });
+}));
+
+app.get('/api/org/:serial/employees', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  const roles = await requireRole(req.wallet, serial, ['owner', 'employee']);
+  if (roles.includes('owner')) {
+    return res.json(await all('SELECT id, name, wallet, title, salary_raw, status, created_at FROM employees WHERE org_serial = ? ORDER BY name', [serial]));
+  }
+  res.json(await all(
+    'SELECT id, name, wallet, title, salary_raw, status, created_at FROM employees WHERE org_serial = ? AND lower(wallet) = ?',
+    [serial, req.wallet.toLowerCase()]
+  ));
+}));
+
+function cleanEmployee(row) {
+  return {
+    name: requireText(row.name, 'Employee name'),
+    wallet: requireWallet(row.wallet),
+    title: row.title ? requireText(row.title, 'Title', 100) : 'Employee',
+    salaryRaw: requireTokenAmount(String(row.salary), 'Salary')
+  };
+}
+
+app.post('/api/org/:serial/employees', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await orgBySerial(serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  const employee = cleanEmployee(req.body);
+  const result = await run(
+    'INSERT INTO employees (org_serial, name, wallet, title, salary_raw) VALUES (?, ?, ?, ?, ?)',
+    [serial, employee.name, employee.wallet, employee.title, employee.salaryRaw]
+  );
+  res.status(201).json({ id: result.lastID, ...employee, salary_raw: employee.salaryRaw, status: 'ACTIVE' });
+}));
+
+app.post('/api/org/:serial/bulk/:kind', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await orgBySerial(serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  const rows = req.body.rows;
+  if (!Array.isArray(rows) || rows.length === 0 || rows.length > 1000) fail(400, 'Upload must contain between 1 and 1000 rows.');
+  if (!['employees', 'suppliers'].includes(req.params.kind)) fail(404, 'Unknown import type.');
+
+  const prepared = rows.map((row, index) => {
+    try {
+      if (req.params.kind === 'employees') return { ...cleanEmployee(row), index: index + 1 };
+      return {
+        name: requireText(row.name, 'Supplier name'),
+        wallet: requireWallet(row.wallet),
+        email: row.email ? requireText(row.email, 'Supplier email', 200) : '',
+        index: index + 1
+      };
+    } catch (error) {
+      error.message = `Row ${index + 2}: ${error.message}`;
+      throw error;
     }
-    const dao = await get('SELECT quorum, timelock_hours FROM dao_containers WHERE org_serial = ?', [org.serial]);
-    if (!dao) {
-      const err = new Error('Initialize the DAO container before executing proposals.');
-      err.status = 400;
-      throw err;
-    }
-    const voteCount = Number(proposal.votes_for || 0) + Number(proposal.votes_against || 0);
-    if (!voteCount || Number(proposal.votes_for || 0) / voteCount * 100 < Number(dao.quorum)) {
-      const err = new Error(`Proposal has not reached its ${dao.quorum}% affirmative vote threshold.`);
-      err.status = 400;
-      throw err;
-    }
-    const mature = await get(
-      `SELECT datetime('now') >= datetime(?, '+' || ? || ' hours') AS ready`,
-      [proposal.created_at, dao.timelock_hours]
-    );
-    if (!mature?.ready) {
-      const err = new Error(`Proposal timelock of ${dao.timelock_hours} hours has not elapsed.`);
-      err.status = 400;
-      throw err;
-    }
-    const account = await get('SELECT balance FROM accounts WHERE org_serial = ? AND asset = ?', [org.serial, proposal.asset]);
-    if (!account || account.balance < proposal.amount) {
-      const err = new Error('Insufficient escrow vault balance.');
-      err.status = 400;
-      throw err;
-    }
-    await run('UPDATE accounts SET balance = balance - ? WHERE org_serial = ? AND asset = ?', [proposal.amount, org.serial, proposal.asset]);
-    await syncLegacyBalances(org.serial);
-    await run(`UPDATE dao_proposals SET status = 'EXECUTED', executed_at = CURRENT_TIMESTAMP WHERE id = ?`, [proposal.id]);
-    tx = await recordTransaction({
-      orgSerial: org.serial, txType: 'DAO Treasury Disbursement', amount: proposal.amount,
-      asset: proposal.asset, source: ASSETS[proposal.asset].account,
-      destination: proposal.recipient, memo: proposal.proposal_key
-    });
   });
-  res.json({ success: true, ...tx });
+  const addresses = prepared.map(item => item.wallet.toLowerCase());
+  if (new Set(addresses).size !== addresses.length) fail(400, 'Upload contains duplicate wallet addresses.');
+
+  await withTransaction(async () => {
+    for (const item of prepared) {
+      if (req.params.kind === 'employees') {
+        await run(
+          'INSERT INTO employees (org_serial, name, wallet, title, salary_raw) VALUES (?, ?, ?, ?, ?)',
+          [serial, item.name, item.wallet, item.title, item.salaryRaw]
+        );
+      } else {
+        await run(
+          'INSERT INTO vendors (org_serial, name, contact_email, wallet) VALUES (?, ?, ?, ?)',
+          [serial, item.name, item.email, item.wallet]
+        );
+      }
+    }
+  });
+  res.status(201).json({ success: true, imported: prepared.length });
+}));
+
+app.get('/api/org/:serial/suppliers', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  const roles = await requireRole(req.wallet, serial, ['owner', 'supplier']);
+  if (roles.includes('owner')) {
+    return res.json(await all(
+      'SELECT id, name, contact_email, wallet, status, created_at FROM vendors WHERE org_serial = ? ORDER BY name',
+      [serial]
+    ));
+  }
+  res.json(await all(
+    'SELECT id, name, contact_email, wallet, status, created_at FROM vendors WHERE org_serial = ? AND lower(wallet) = ?',
+    [serial, req.wallet.toLowerCase()]
+  ));
+}));
+
+app.post('/api/org/:serial/suppliers', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await orgBySerial(serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  const name = requireText(req.body.name, 'Supplier name');
+  const wallet = requireWallet(req.body.wallet);
+  const email = req.body.email ? requireText(req.body.email, 'Supplier email', 200) : '';
+  const result = await run(
+    'INSERT INTO vendors (org_serial, name, contact_email, wallet) VALUES (?, ?, ?, ?)',
+    [serial, name, email, wallet]
+  );
+  res.status(201).json({ id: result.lastID, name, contact_email: email, wallet, status: 'ACTIVE' });
+}));
+
+app.post('/api/org/:serial/invoices', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  const org = await orgBySerial(serial);
+  const invoiceNumber = requireText(req.body.invoiceNumber, 'Invoice number', 100);
+  const description = requireText(req.body.description, 'Description', 1000);
+  const amountRaw = requireTokenAmount(String(req.body.amount), 'Invoice amount');
+  const dueDate = requireText(req.body.dueDate, 'Due date', 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || Number.isNaN(Date.parse(`${dueDate}T00:00:00Z`))) fail(400, 'Due date must use YYYY-MM-DD.');
+  const result = await run(
+    `INSERT INTO invoices (org_serial, supplier_wallet, invoice_number, amount_raw, due_date, description)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [serial, req.wallet, invoiceNumber, amountRaw, dueDate, description]
+  );
+  res.status(201).json({
+    id: result.lastID,
+    org_serial: org.serial,
+    company_name: org.name,
+    supplier_wallet: req.wallet,
+    invoice_number: invoiceNumber,
+    amount_raw: amountRaw,
+    due_date: dueDate,
+    description,
+    status: 'OPEN'
+  });
+}));
+
+app.get('/api/org/:serial/invoices', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  res.json(await all(
+    `SELECT id, org_serial, supplier_wallet, invoice_number, amount_raw, due_date, description, status,
+            escrow_id, tx_hash, created_at
+     FROM invoices WHERE org_serial = ? ORDER BY created_at DESC, id DESC`,
+    [serial]
+  ));
+}));
+
+app.get('/api/my/invoices', asyncRoute(async (req, res) => {
+  res.json(await all(
+    `SELECT i.id, i.org_serial, o.name AS company_name, i.supplier_wallet, i.invoice_number, i.amount_raw,
+            i.due_date, i.description, i.status, i.escrow_id, i.tx_hash, i.created_at
+     FROM invoices i JOIN organizations o ON o.serial = i.org_serial
+     WHERE lower(i.supplier_wallet) = ? ORDER BY i.created_at DESC, i.id DESC`,
+    [req.wallet.toLowerCase()]
+  ));
+}));
+
+app.get('/api/org/:serial/activity', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  const roles = await requireRole(req.wallet, serial, ['owner', 'employee', 'supplier']);
+  const sql = `SELECT tx_hash, wallet_from, wallet_to, kind, asset, amount_raw, status, block_number, timestamp, memo
+    FROM transactions WHERE org_serial = ? ${roles.includes('owner') ? '' : 'AND (lower(wallet_from) = ? OR lower(wallet_to) = ?)'}
+    ORDER BY block_number DESC, id DESC LIMIT 1000`;
+  const params = roles.includes('owner') ? [serial] : [serial, req.wallet.toLowerCase(), req.wallet.toLowerCase()];
+  res.json(await all(sql, params));
+}));
+
+app.get('/api/org/:serial/report', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  const [transactions, invoices, employees, suppliers] = await Promise.all([
+    all('SELECT tx_hash, wallet_from, wallet_to, kind, asset, amount_raw, status, block_number, timestamp, memo FROM transactions WHERE org_serial = ? ORDER BY id DESC', [serial]),
+    all('SELECT id, supplier_wallet, invoice_number, amount_raw, due_date, description, status, tx_hash FROM invoices WHERE org_serial = ? ORDER BY id DESC', [serial]),
+    all('SELECT name, wallet, title, salary_raw, status FROM employees WHERE org_serial = ? ORDER BY name', [serial]),
+    all('SELECT name, contact_email, wallet, status FROM vendors WHERE org_serial = ? ORDER BY name', [serial])
+  ]);
+  res.json({ transactions, invoices, employees, suppliers });
+}));
+
+async function inspectTransfer(txHash, wallet, recipient, amountRaw) {
+  let receipt;
+  try {
+    receipt = await provider.getTransactionReceipt(txHash);
+  } catch {
+    fail(400, 'Unable to read the transaction receipt from the configured network.');
+  }
+  if (!receipt || receipt.status !== 1) fail(400, 'Transaction is not confirmed successfully on the configured network.');
+  const tx = await provider.getTransaction(txHash);
+  if (!tx || tx.from.toLowerCase() !== wallet.toLowerCase()) fail(403, 'Confirmed transaction sender does not match the signed-in wallet.');
+  if (!tx.to || tx.to.toLowerCase() !== USDT.toLowerCase()) fail(400, 'Transaction did not call the configured USDT contract.');
+  const target = recipient.toLowerCase();
+  const expected = BigInt(amountRaw);
+  const matching = receipt.logs
+    .filter(log => log.address.toLowerCase() === USDT.toLowerCase())
+    .map(log => {
+      try { return TOKEN_INTERFACE.parseLog(log); } catch { return null; }
+    })
+    .filter(event => event && event.name === 'Transfer')
+    .find(event => event.args.from.toLowerCase() === wallet.toLowerCase()
+      && event.args.to.toLowerCase() === target
+      && event.args.value === expected);
+  if (!matching) fail(400, 'Confirmed transaction does not contain the expected USDT transfer.');
+  return { receipt, tx };
+}
+
+app.post('/api/org/:serial/payments/confirm', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  const recipient = requireWallet(req.body.recipient, 'Recipient wallet');
+  const amountRaw = requireTokenAmount(String(req.body.amount), 'Payment amount');
+  const memo = requireText(req.body.memo || 'USDT payment', 'Payment memo', 200);
+  const { receipt } = await inspectTransfer(req.body.txHash, req.wallet, recipient, amountRaw);
+  await run(
+    `INSERT OR IGNORE INTO transactions
+      (org_serial, tx_hash, wallet_from, wallet_to, kind, asset, amount_raw, status, block_number, timestamp, memo)
+     VALUES (?, ?, ?, ?, 'USDT Payment', 'USDT', ?, 'CONFIRMED', ?, ?, ?)`,
+    [serial, receipt.hash, req.wallet, recipient, amountRaw, receipt.blockNumber, new Date((await provider.getBlock(receipt.blockNumber)).timestamp * 1000).toISOString(), memo]
+  );
+  res.json({ success: true, tx_hash: receipt.hash, block_number: receipt.blockNumber });
+}));
+
+async function validateContractDeployment(txHash, wallet, kind) {
+  const receipt = await provider.getTransactionReceipt(txHash);
+  if (!receipt || receipt.status !== 1 || !receipt.contractAddress) fail(400, 'Contract deployment is not confirmed.');
+  const tx = await provider.getTransaction(txHash);
+  if (tx.from.toLowerCase() !== wallet.toLowerCase()) fail(403, 'Deployment wallet does not match the signed-in wallet.');
+  if (await provider.getCode(receipt.contractAddress) === '0x') fail(400, 'Deployed contract has no code on the configured network.');
+  const artifact = compileContracts()[kind === 'dao' ? 'CompanyDAO' : 'CompanyEscrow'];
+  const constructorArgs = kind === 'dao'
+    ? ethers.AbiCoder.defaultAbiCoder().encode(['address'], [wallet])
+    : ethers.AbiCoder.defaultAbiCoder().encode(['address','address'], [wallet, USDT]);
+  const expectedData = `${artifact.bytecode}${constructorArgs.slice(2)}`;
+  if (tx.data.toLowerCase() !== expectedData.toLowerCase()) {
+    fail(400, 'Deployed contract does not match the configured company template and constructor values.');
+  }
+  const contract = new ethers.Contract(receipt.contractAddress, artifact.abi, provider);
+  const [deployedOwner, deployedToken] = kind === 'dao'
+    ? [await contract.owner(), null]
+    : [await contract.company(), await contract.token()];
+  if (deployedOwner.toLowerCase() !== wallet.toLowerCase()) fail(400, 'Contract owner does not match the connected company wallet.');
+  if (deployedToken && deployedToken.toLowerCase() !== USDT.toLowerCase()) fail(400, 'Escrow contract token does not match configured USDT.');
+  return ethers.getAddress(receipt.contractAddress);
+}
+
+app.post('/api/org/:serial/contracts/:kind', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  if (!['dao', 'escrow'].includes(req.params.kind)) fail(404, 'Unknown company contract type.');
+  const address = await validateContractDeployment(req.body.txHash, req.wallet, req.params.kind);
+  const column = req.params.kind === 'dao' ? 'dao_address' : 'escrow_address';
+  await run(`UPDATE organizations SET ${column} = ? WHERE serial = ?`, [address, serial]);
+  const receipt = await provider.getTransactionReceipt(req.body.txHash);
+  const block = await provider.getBlock(receipt.blockNumber);
+  await run(
+    `INSERT OR IGNORE INTO transactions
+     (org_serial, tx_hash, wallet_from, wallet_to, kind, asset, amount_raw, status, block_number, timestamp, memo)
+     VALUES (?, ?, ?, ?, ?, 'CONTRACT', '0', 'CONFIRMED', ?, ?, ?)`,
+    [serial, receipt.hash, req.wallet, address,
+      req.params.kind === 'dao' ? 'DAO Contract Deployed' : 'Escrow Contract Deployed',
+      receipt.blockNumber, new Date(block.timestamp * 1000).toISOString(), 'Company contract deployment']
+  );
+  res.json({ success: true, address });
+}));
+
+app.post('/api/org/:serial/invoices/:id/fund', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  const org = await orgBySerial(serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  if (!org.escrow_address) fail(400, 'Deploy the company escrow contract before funding an invoice.');
+  const invoice = await get('SELECT * FROM invoices WHERE id = ? AND org_serial = ?', [Number(req.params.id), serial]);
+  if (!invoice || invoice.status !== 'OPEN') fail(404, 'Open invoice not found.');
+  const txHash = requireText(req.body.txHash, 'Funding transaction hash', 66);
+  const receipt = await provider.getTransactionReceipt(txHash);
+  if (!receipt || receipt.status !== 1) fail(400, 'Escrow funding transaction is not confirmed.');
+  const tx = await provider.getTransaction(txHash);
+  if (tx.from.toLowerCase() !== req.wallet.toLowerCase() || tx.to?.toLowerCase() !== org.escrow_address.toLowerCase()) {
+    fail(403, 'Escrow funding transaction does not match the company wallet and escrow contract.');
+  }
+  const expectedInvoice = ethers.id(String(invoice.id));
+  const event = receipt.logs
+    .filter(log => log.address.toLowerCase() === org.escrow_address.toLowerCase())
+    .map(log => { try { return ESCROW_INTERFACE.parseLog(log); } catch { return null; } })
+    .find(parsed => parsed?.name === 'EscrowCreated'
+      && parsed.args.invoiceId === expectedInvoice
+      && parsed.args.supplier.toLowerCase() === invoice.supplier_wallet.toLowerCase()
+      && parsed.args.amount === BigInt(invoice.amount_raw)
+      && parsed.args.token.toLowerCase() === USDT.toLowerCase());
+  if (!event) fail(400, 'Escrow transaction does not match this invoice.');
+  const transfer = receipt.logs
+    .filter(log => log.address.toLowerCase() === USDT.toLowerCase())
+    .map(log => { try { return TOKEN_INTERFACE.parseLog(log); } catch { return null; } })
+    .find(parsed => parsed?.name === 'Transfer'
+      && parsed.args.from.toLowerCase() === req.wallet.toLowerCase()
+      && parsed.args.to.toLowerCase() === org.escrow_address.toLowerCase()
+      && parsed.args.value === BigInt(invoice.amount_raw));
+  if (!transfer) fail(400, 'Escrow funding receipt does not contain the matching USDT transfer.');
+  await withTransaction(async () => {
+    await run(
+      "UPDATE invoices SET status = 'ESCROWED', escrow_id = ?, tx_hash = ? WHERE id = ? AND status = 'OPEN'",
+      [event.args.escrowId.toString(), receipt.hash, invoice.id]
+    );
+    await run(
+      `INSERT OR IGNORE INTO transactions
+       (org_serial, tx_hash, wallet_from, wallet_to, kind, asset, amount_raw, status, block_number, timestamp, memo)
+       VALUES (?, ?, ?, ?, 'Escrow Funded', 'USDT', ?, 'CONFIRMED', ?, ?, ?)`,
+      [serial, receipt.hash, req.wallet, invoice.supplier_wallet, invoice.amount_raw, receipt.blockNumber,
+        new Date((await provider.getBlock(receipt.blockNumber)).timestamp * 1000).toISOString(), `Invoice ${invoice.invoice_number}`]
+    );
+  });
+  res.json({ success: true, escrow_id: event.args.escrowId.toString(), tx_hash: receipt.hash });
+}));
+
+async function updateInvoiceEscrow(req, res, eventName, nextStatus) {
+  const serial = requireOrgSerial(req.params.serial);
+  const org = await orgBySerial(serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  if (!org.escrow_address) fail(400, 'Company escrow contract is not configured.');
+  const invoice = await get('SELECT * FROM invoices WHERE id = ? AND org_serial = ?', [Number(req.params.id), serial]);
+  if (!invoice || invoice.status !== 'ESCROWED') fail(404, 'Funded invoice not found.');
+  const receipt = await provider.getTransactionReceipt(requireText(req.body.txHash, 'Transaction hash', 66));
+  if (!receipt || receipt.status !== 1) fail(400, 'Escrow action is not confirmed.');
+  const tx = await provider.getTransaction(receipt.hash);
+  if (tx.from.toLowerCase() !== req.wallet.toLowerCase() || tx.to?.toLowerCase() !== org.escrow_address.toLowerCase()) {
+    fail(403, 'Escrow action does not match the company wallet and contract.');
+  }
+  const event = receipt.logs
+    .filter(log => log.address.toLowerCase() === org.escrow_address.toLowerCase())
+    .map(log => { try { return ESCROW_INTERFACE.parseLog(log); } catch { return null; } })
+    .find(parsed => parsed?.name === eventName
+      && parsed.args.escrowId.toString() === invoice.escrow_id
+      && parsed.args.amount === BigInt(invoice.amount_raw));
+  if (!event) fail(400, `Confirmed transaction does not contain ${eventName}.`);
+  const recipient = nextStatus === 'PAID' ? invoice.supplier_wallet : req.wallet;
+  const transfer = receipt.logs
+    .filter(log => log.address.toLowerCase() === USDT.toLowerCase())
+    .map(log => { try { return TOKEN_INTERFACE.parseLog(log); } catch { return null; } })
+    .find(parsed => parsed?.name === 'Transfer'
+      && parsed.args.from.toLowerCase() === org.escrow_address.toLowerCase()
+      && parsed.args.to.toLowerCase() === recipient.toLowerCase()
+      && parsed.args.value === BigInt(invoice.amount_raw));
+  if (!transfer) fail(400, 'Escrow receipt does not contain the matching USDT transfer.');
+  await withTransaction(async () => {
+    await run('UPDATE invoices SET status = ?, tx_hash = ? WHERE id = ?', [nextStatus, receipt.hash, invoice.id]);
+    await run(
+      `INSERT OR IGNORE INTO transactions
+       (org_serial, tx_hash, wallet_from, wallet_to, kind, asset, amount_raw, status, block_number, timestamp, memo)
+       VALUES (?, ?, ?, ?, ?, 'USDT', ?, 'CONFIRMED', ?, ?, ?)`,
+      [serial, receipt.hash, req.wallet,
+        recipient,
+        nextStatus === 'PAID' ? 'Escrow Released' : 'Escrow Refunded',
+        invoice.amount_raw, receipt.blockNumber,
+        new Date((await provider.getBlock(receipt.blockNumber)).timestamp * 1000).toISOString(),
+        `Invoice ${invoice.invoice_number}`]
+    );
+  });
+  res.json({ success: true, status: nextStatus, tx_hash: receipt.hash });
+}
+
+app.post('/api/org/:serial/invoices/:id/release', asyncRoute((req, res) => updateInvoiceEscrow(req, res, 'EscrowReleased', 'PAID')));
+app.post('/api/org/:serial/invoices/:id/refund', asyncRoute((req, res) => updateInvoiceEscrow(req, res, 'EscrowRefunded', 'REFUNDED')));
+
+app.post('/api/org/:serial/dao/:id/confirm', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  const org = await orgBySerial(serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  if (!org.dao_address) fail(400, 'Company DAO is not configured.');
+  let proposalId;
+  try { proposalId = BigInt(req.params.id); } catch { fail(400, 'Proposal ID must be an integer.'); }
+  if (proposalId <= 0n) fail(400, 'Proposal ID must be positive.');
+  const receipt = await provider.getTransactionReceipt(requireText(req.body.txHash, 'Transaction hash', 66));
+  if (!receipt || receipt.status !== 1) fail(400, 'DAO execution is not confirmed.');
+  const tx = await provider.getTransaction(receipt.hash);
+  if (tx.from.toLowerCase() !== req.wallet.toLowerCase() || tx.to?.toLowerCase() !== org.dao_address.toLowerCase()) {
+    fail(403, 'DAO execution does not match the connected wallet and company DAO.');
+  }
+  const event = receipt.logs
+    .filter(log => log.address.toLowerCase() === org.dao_address.toLowerCase())
+    .map(log => { try { return DAO_INTERFACE.parseLog(log); } catch { return null; } })
+    .find(parsed => parsed?.name === 'ProposalExecuted' && parsed.args.proposalId === proposalId);
+  if (!event) fail(400, 'DAO receipt does not contain the expected proposal execution event.');
+  const proposal = await new ethers.Contract(org.dao_address, compileContracts().CompanyDAO.abi, provider).proposals(proposalId);
+  if (!proposal.executed || proposal.token.toLowerCase() !== USDT.toLowerCase()) fail(400, 'Executed proposal is not a configured USDT treasury payment.');
+  const transfer = receipt.logs
+    .filter(log => log.address.toLowerCase() === USDT.toLowerCase())
+    .map(log => { try { return TOKEN_INTERFACE.parseLog(log); } catch { return null; } })
+    .find(parsed => parsed?.name === 'Transfer'
+      && parsed.args.from.toLowerCase() === org.dao_address.toLowerCase()
+      && parsed.args.to.toLowerCase() === proposal.recipient.toLowerCase()
+      && parsed.args.value === proposal.amount);
+  if (!transfer) fail(400, 'DAO receipt does not contain the matching USDT transfer.');
+  const block = await provider.getBlock(receipt.blockNumber);
+  await run(
+    `INSERT OR IGNORE INTO transactions
+     (org_serial, tx_hash, wallet_from, wallet_to, kind, asset, amount_raw, status, block_number, timestamp, memo)
+     VALUES (?, ?, ?, ?, 'DAO Treasury Disbursement', 'USDT', ?, 'CONFIRMED', ?, ?, ?)`,
+    [serial, receipt.hash, org.dao_address, proposal.recipient, proposal.amount.toString(),
+      receipt.blockNumber, new Date(block.timestamp * 1000).toISOString(), `DAO proposal ${proposalId.toString()}`]
+  );
+  res.json({ success: true, tx_hash: receipt.hash, amount_raw: proposal.amount.toString() });
+}));
+
+let contractArtifacts;
+function compileContracts() {
+  if (contractArtifacts) return contractArtifacts;
+  const sources = {};
+  for (const filename of ['CompanyDAO.sol', 'CompanyEscrow.sol']) {
+    sources[filename] = { content: fs.readFileSync(path.join(__dirname, 'contracts', filename), 'utf8') };
+  }
+  const input = {
+    language: 'Solidity',
+    sources,
+    settings: {
+      evmVersion: 'paris',
+      optimizer: { enabled: true, runs: 300 },
+      outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object'] } }
+    }
+  };
+  const output = JSON.parse(solc.compile(JSON.stringify(input)));
+  const errors = (output.errors || []).filter(error => error.severity === 'error');
+  if (errors.length) throw new Error(errors.map(error => error.formattedMessage).join('\n'));
+  contractArtifacts = {};
+  for (const [file, contracts] of Object.entries(output.contracts || {})) {
+    for (const [name, contract] of Object.entries(contracts)) {
+      if (['CompanyDAO', 'CompanyEscrow'].includes(name)) {
+        contractArtifacts[name] = { abi: contract.abi, bytecode: `0x${contract.evm.bytecode.object}` };
+      }
+    }
+  }
+  return contractArtifacts;
+}
+
+app.get('/api/contracts', asyncRoute(async (_req, res) => {
+  res.json(compileContracts());
+}));
+
+app.get('/api/org/:serial/treasury', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  const dao = await get('SELECT dao_address FROM organizations WHERE serial = ?', [serial]);
+  if (!dao?.dao_address) return res.json({ dao: null });
+  const artifact = compileContracts().CompanyDAO;
+  const contract = new ethers.Contract(dao.dao_address, artifact.abi, provider);
+  const [quorum, delay, count] = await Promise.all([contract.quorumPercent(), contract.timelockSeconds(), contract.proposalCount()]);
+  res.json({ dao: dao.dao_address, quorum: Number(quorum), timelockSeconds: Number(delay), proposalCount: Number(count) });
+}));
+
+app.get('/api/org/:serial/escrow', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  const org = await get('SELECT escrow_address FROM organizations WHERE serial = ?', [serial]);
+  res.json({ escrow: org?.escrow_address || null });
+}));
+
+async function initializeDatabase() {
+  await run('PRAGMA foreign_keys = ON');
+  const statements = [
+    `CREATE TABLE IF NOT EXISTS organizations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      serial TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      owner_wallet TEXT NOT NULL,
+      dao_address TEXT,
+      escrow_address TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(owner_wallet)
+    )`,
+    `CREATE TABLE IF NOT EXISTS employees (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      org_serial TEXT NOT NULL REFERENCES organizations(serial) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      wallet TEXT NOT NULL,
+      title TEXT NOT NULL,
+      salary_raw TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(org_serial, wallet)
+    )`,
+    `CREATE TABLE IF NOT EXISTS vendors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      org_serial TEXT NOT NULL REFERENCES organizations(serial) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      contact_email TEXT NOT NULL DEFAULT '',
+      wallet TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'ACTIVE',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(org_serial, wallet)
+    )`,
+    `CREATE TABLE IF NOT EXISTS invoices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      org_serial TEXT NOT NULL REFERENCES organizations(serial) ON DELETE CASCADE,
+      supplier_wallet TEXT NOT NULL,
+      invoice_number TEXT NOT NULL,
+      amount_raw TEXT NOT NULL,
+      due_date TEXT NOT NULL,
+      description TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'OPEN',
+      escrow_id TEXT,
+      tx_hash TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(org_serial, invoice_number)
+    )`,
+    `CREATE TABLE IF NOT EXISTS join_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      org_serial TEXT NOT NULL REFERENCES organizations(serial) ON DELETE CASCADE,
+      wallet TEXT NOT NULL,
+      requested_role TEXT NOT NULL CHECK (requested_role IN ('employee','supplier')),
+      name TEXT NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      salary_raw TEXT NOT NULL DEFAULT '',
+      contact_email TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED')),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      org_serial TEXT NOT NULL REFERENCES organizations(serial) ON DELETE CASCADE,
+      tx_hash TEXT NOT NULL UNIQUE,
+      wallet_from TEXT NOT NULL,
+      wallet_to TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      asset TEXT NOT NULL DEFAULT 'USDT',
+      amount_raw TEXT NOT NULL,
+      status TEXT NOT NULL,
+      block_number INTEGER NOT NULL,
+      timestamp TEXT NOT NULL,
+      memo TEXT NOT NULL DEFAULT ''
+    )`,
+    'CREATE INDEX IF NOT EXISTS idx_employees_wallet ON employees(wallet)',
+    'CREATE INDEX IF NOT EXISTS idx_vendors_wallet ON vendors(wallet)',
+    'CREATE INDEX IF NOT EXISTS idx_invoices_supplier ON invoices(supplier_wallet)',
+    'CREATE INDEX IF NOT EXISTS idx_join_requests_org_status ON join_requests(org_serial, status)',
+    'CREATE INDEX IF NOT EXISTS idx_transactions_wallets ON transactions(wallet_from, wallet_to)'
+  ];
+  for (const statement of statements) await run(statement);
+}
+
+app.use((error, _req, res, _next) => {
+  console.error('API request failed:', error.message);
+  res.status(error.status || 500).json({ error: error.status ? error.message : 'Internal server error.' });
 });
 
-app.use((err, _req, res, _next) => {
-  console.error('API request failed:', err.message);
-  res.status(err.status || 500).json({ error: err.status ? err.message : 'Internal server error.' });
-});
-
-initializeDatabase().then(() => {
-  const port = Number(PORT);
-  app.listen(port, () => console.log(`Terminull Enterprise Server running on port ${port}`));
-}).catch(err => {
-  console.error('Failed to initialize SQLite database:', err);
+initializeDatabase().then(async () => {
+  const network = await provider.getNetwork();
+  if (Number(network.chainId) !== CHAIN_ID) throw new Error(`RPC chain mismatch: expected ${CHAIN_ID}, received ${network.chainId}.`);
+  compileContracts();
+  app.listen(PORT, () => console.log(`Terminull server ready on ${PORT}; chain ${CHAIN_ID}.`));
+}).catch(error => {
+  console.error('Failed to initialize Terminull:', error);
   process.exitCode = 1;
 });

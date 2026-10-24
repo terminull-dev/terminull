@@ -64,6 +64,9 @@
     #content { font-size:.85rem; }
     .grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.85rem; }
     .card { padding:1.1rem;margin:0 0 .9rem; } .card:hover { border-color:rgba(176,185,193,.18); }
+    .inactive-panel { opacity:.62; }
+    .inactive-panel input:disabled,.inactive-panel select:disabled,.inactive-panel button:disabled { cursor:not-allowed;opacity:.5; }
+    .inactive-badge { display:inline-flex;align-items:center;border:1px solid rgba(248,113,113,.28);border-radius:999px;padding:.28rem .58rem;color:#fca5a5;background:rgba(127,29,29,.16);font-size:.65rem;font-weight:750;letter-spacing:.06em;text-transform:uppercase; }
     .row>* { flex:1; } .mono,code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere; }
     code { color:#cbd5e1; } .danger { color:#fecaca; } .success-text { color:#86efac; }
     .actions { display:flex;gap:.45rem;flex-wrap:wrap; } .actions button { padding:.5rem .7rem;font-size:.78rem; }
@@ -419,10 +422,10 @@
     }
 
     const tabsFor = type => ({
-      company:['overview','accounts','employees','suppliers','invoices','escrow','dao','reports'],
-      employee:['overview','activity'],
-      supplier:['overview','invoices','activity'],
-      new:['overview','company','join','invoice']
+      company:['overview','accounts','employees','suppliers','invoices','escrow','dao','reports','privacy'],
+      employee:['overview','activity','privacy'],
+      supplier:['overview','invoices','activity','privacy'],
+      new:['overview','company','join','invoice','privacy']
     }[type] || ['overview']);
 
     const tabLabels = {
@@ -437,7 +440,8 @@
       activity:'Transactions',
       company:'Create company',
       join:'Join a company',
-      invoice:'Invoice a company'
+      invoice:'Invoice a company',
+      privacy:'Privacy / ZK (inactive)'
     };
 
     async function renderWorkspace() {
@@ -450,6 +454,7 @@
       const content = document.getElementById('content');
       content.innerHTML = '<div class="card muted">Loading verified account data…</div>';
       try {
+        if (activeTab === 'privacy') return renderPrivacyWorkspace();
         if (context.type === 'new') return renderNewWallet();
         if (context.type === 'company') return await renderCompany();
         if (context.type === 'employee') return await renderEmployee();
@@ -460,6 +465,62 @@
     }
 
     function openTab(tab) { activeTab = tab; renderWorkspace(); }
+
+    function renderPrivacyWorkspace() {
+      document.getElementById('content').innerHTML = `
+        <section class="card">
+          <div class="row" style="justify-content:space-between;align-items:center">
+            <div><h2>Private assets · shield and unshield</h2><p class="muted">Preview of the planned private-asset workflow. No proof generation, pool transaction, or private balance is active.</p></div>
+            <span class="inactive-badge">Inactive · contracts being redeployed</span>
+          </div>
+          <p class="small muted">The connected wallet remains available for normal company tasks. ZK actions stay locked until the replacement pool, matching verifier, circuits, and chain configuration have been verified together.</p>
+        </section>
+        <div class="grid">
+          <section class="card inactive-panel">
+            <h2>Shield assets into the private pool</h2>
+            <p class="small muted">Planned flow: choose the deployed pool asset, prepare a private note, create a commitment, and submit a deposit with its encrypted note.</p>
+            <label for="zkDepositAsset">Pool asset</label>
+            <select id="zkDepositAsset" disabled><option>Asset selection unavailable until deployment is verified</option></select>
+            <label for="zkDepositAmount">Amount</label>
+            <input id="zkDepositAmount" type="number" placeholder="Unavailable" disabled>
+            <label for="zkDepositNote">Private note backup</label>
+            <input id="zkDepositNote" type="text" placeholder="Generated only by the verified client" disabled>
+            <button type="button" disabled>Generate note & shield deposit</button>
+            <p class="small muted">Disabled: the replacement contract ABI and circuit inputs are not yet connected.</p>
+          </section>
+          <section class="card inactive-panel">
+            <h2>Unshield / withdraw</h2>
+            <p class="small muted">Planned flow: restore a private note, select a current Merkle root, generate a domain-bound Groth16 proof, and withdraw to the chosen public recipient.</p>
+            <label for="zkWithdrawNote">Private note</label>
+            <input id="zkWithdrawNote" type="password" placeholder="Note recovery is not connected" disabled>
+            <label for="zkWithdrawRecipient">Public recipient wallet</label>
+            <input id="zkWithdrawRecipient" placeholder="0x…" disabled>
+            <div class="form-grid">
+              <div><label for="zkWithdrawFee">Relayer fee</label><input id="zkWithdrawFee" placeholder="Unavailable" disabled></div>
+              <div><label for="zkWithdrawAmount">Withdrawal amount</label><input id="zkWithdrawAmount" placeholder="Unavailable" disabled></div>
+            </div>
+            <button type="button" disabled>Generate proof & withdraw</button>
+            <p class="small muted">Disabled: no proof can be safely generated or verified against the pending deployment.</p>
+          </section>
+        </div>
+        <div class="grid">
+          <section class="card">
+            <h2>Private asset view</h2>
+            <p class="muted">Shielded balances are not available in this preview.</p>
+            <div class="table-wrap"><table><thead><tr><th>Asset</th><th>Private balance</th><th>Pool status</th></tr></thead>
+              <tbody><tr><td>Configured pool asset</td><td>Not connected</td><td>Inactive</td></tr></tbody>
+            </table></div>
+            <p class="small muted">No balance is inferred from public wallet holdings or fabricated for this screen.</p>
+          </section>
+          <section class="card">
+            <h2>Shielded transactions</h2>
+            <p class="muted">Private deposits and withdrawals will appear here once an event indexer and the verified pool interface are connected.</p>
+            <div class="table-wrap"><table><thead><tr><th>Time</th><th>Action</th><th>Asset</th><th>Amount</th><th>Status</th></tr></thead>
+              <tbody><tr><td colspan="5" class="muted">No ZK transaction history is connected.</td></tr></tbody>
+            </table></div>
+          </section>
+        </div>`;
+    }
 
     function renderNewWallet() {
       const content = document.getElementById('content');

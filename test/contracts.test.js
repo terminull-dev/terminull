@@ -85,9 +85,9 @@ test('workspace navigation exposes company tools and unlinked-wallet actions', (
   const tabsFor = script.match(/const tabsFor = type => \(\{[\s\S]*?\n    \}\[type\] \|\| \['overview'\]\);/)[0];
   const tabs = new (require('node:vm').Script)(`${tabsFor}\ntabsFor`).runInNewContext();
   assert.deepEqual(Array.from(tabs('company')), [
-    'overview', 'accounts', 'employees', 'suppliers', 'invoices', 'escrow', 'dao', 'reports'
+    'overview', 'accounts', 'employees', 'suppliers', 'invoices', 'escrow', 'dao', 'reports', 'privacy'
   ]);
-  assert.deepEqual(Array.from(tabs('new')), ['overview', 'company', 'join', 'invoice']);
+  assert.deepEqual(Array.from(tabs('new')), ['overview', 'company', 'join', 'invoice', 'privacy']);
   assert.match(script, /\['overview','accounts'\]\.includes\(activeTab\) \? walletUsdtBalance\(\)/);
   assert.match(script, /async function sendUsdtPayment\(\)/);
   assert.match(script, /activeTab === 'escrow'/);
@@ -97,4 +97,30 @@ test('workspace navigation exposes company tools and unlinked-wallet actions', (
   assert.match(script, /provider\.getBalance\(wallet\)/);
   assert.match(script, /token\.balanceOf\(org\.dao_address\)/);
   assert.match(script, /ethers\.formatUnits\(balance, 18\)\} USDT/);
+});
+
+test('ZK workspace previews shielding and withdrawals with every control disabled', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'app.html'), 'utf8');
+  const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+    .map(match => match[1])
+    .find(content => content.includes('const tabsFor'));
+  const tabsFor = script.match(/const tabsFor = type => \(\{[\s\S]*?\n    \}\[type\] \|\| \['overview'\]\);/)[0];
+  const tabs = new (require('node:vm').Script)(`${tabsFor}\ntabsFor`).runInNewContext();
+  for (const role of ['company', 'employee', 'supplier', 'new']) {
+    assert.ok(Array.from(tabs(role)).includes('privacy'), `${role} workspace should expose the privacy preview`);
+  }
+
+  const renderFunction = script.match(/function renderPrivacyWorkspace\(\) \{[\s\S]*?\n    \}/)[0];
+  const target = { innerHTML: '' };
+  const document = { getElementById: () => target };
+  new (require('node:vm').Script)(`${renderFunction}\nrenderPrivacyWorkspace()`)
+    .runInNewContext({ document });
+  const markup = target.innerHTML;
+  assert.match(markup, /Shield assets into the private pool/);
+  assert.match(markup, /Unshield \/ withdraw/);
+  assert.match(markup, /Private asset view/);
+  assert.match(markup, /Shielded transactions/);
+  assert.match(markup, /No balance is inferred/);
+  assert.doesNotMatch(markup, /onclick=/);
+  assert.equal((markup.match(/\sdisabled(?:\s|>)/g) || []).length, 9);
 });

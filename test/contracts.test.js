@@ -130,8 +130,10 @@ test('dashboard has collapsible function groups and charts only confirmed activi
     .find(content => content.includes('const tabsFor'));
   assert.doesNotMatch(html, /brand-mark|aria-hidden="true">T<\/span>/);
   assert.match(html, /--accent:#a58aff/);
-  assert.match(html, /<strong>Termi<span class="brand-accent">Null<\/span><\/strong><small>ENTERPRISE FINANCIAL SUITE<\/small>/);
-  assert.match(html, /\.brand-wordmark strong \{ color:#fff/);
+  assert.match(html, /<span class="brand-name">Termi<span>Null<\/span><\/span>/);
+  assert.match(html, /<span class="brand-caption">Enterprise Financial Suite<\/span>/);
+  assert.match(html, /\.brand-name \{ color:#fff;font:800 19px Manrope,sans-serif/);
+  assert.match(html, /\.brand-caption \{ color:var\(--muted\);font-size:10px/);
   assert.doesNotMatch(html, /<small>\/ TREASURY<\/small>|Enterprise financial suite · Lunul PoA/);
   assert.match(script, /<details class="nav-group" data-group=/);
   assert.match(script, /name:'People & partners'/);

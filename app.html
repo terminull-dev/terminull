@@ -26,10 +26,9 @@
     header { position:sticky;top:0;z-index:3;border-bottom:1px solid rgba(170,136,255,.12);background:rgba(24,21,31,.96);backdrop-filter:blur(20px); }
     .topbar,.page-shell,.site-footer { width:min(1600px,100%);margin:0 auto;padding-left:clamp(1rem,4vw,3rem);padding-right:clamp(1rem,4vw,3rem); }
     .topbar { min-height:72px;display:flex;align-items:center;justify-content:space-between;gap:1rem; }
-    .brand { display:inline-flex;align-items:center;gap:.7rem;color:#fff;text-decoration:none;font-weight:800;font-size:.95rem;letter-spacing:.025em; }
-    .brand-mark { display:grid;place-items:center;width:2rem;height:2rem;border:1px solid rgba(170,136,255,.45);border-radius:.65rem;color:var(--accent);background:linear-gradient(145deg,rgba(170,136,255,.2),rgba(170,136,255,.04));font-size:1rem;font-weight:850; }
+    .brand { display:inline-flex;align-items:center;color:#fff;text-decoration:none;font-weight:800;font-size:.95rem;letter-spacing:.025em; }
     .brand-wordmark { display:flex;flex-direction:column;align-items:flex-start;gap:.05rem; }
-    .brand-wordmark strong { font-family:Manrope,ui-sans-serif,sans-serif;font-weight:800;letter-spacing:-.035em; }
+    .brand-wordmark strong { color:#fff;font-family:Manrope,ui-sans-serif,sans-serif;font-weight:800;letter-spacing:-.035em; }
     .brand-accent { color:var(--accent); }
     .brand-wordmark small { color:#c8b9e8;font-size:.59rem;font-weight:700;letter-spacing:.12em; }
     .brand-note,.small { font-size:.78rem; } .brand-note,.muted { color:var(--muted); }
@@ -145,7 +144,7 @@
   <header>
     <div class="topbar">
       <div>
-        <a class="brand" href="/"><span class="brand-mark" aria-hidden="true">T</span><span class="brand-wordmark"><strong>TermiNull</strong><small>ENTERPRISE FINANCIAL SUITE</small></span></a>
+        <a class="brand" href="/"><span class="brand-wordmark"><strong>Termi<span class="brand-accent">Null</span></strong><small>ENTERPRISE FINANCIAL SUITE</small></span></a>
       </div>
       <div class="header-actions">
         <span id="networkStatus" class="status-pill">Network not checked</span>

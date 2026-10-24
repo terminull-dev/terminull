@@ -128,9 +128,10 @@ test('dashboard has collapsible function groups and charts only confirmed activi
   const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
     .map(match => match[1])
     .find(content => content.includes('const tabsFor'));
-  assert.match(html, /brand-mark/);
+  assert.doesNotMatch(html, /brand-mark|aria-hidden="true">T<\/span>/);
   assert.match(html, /--accent:#a58aff/);
-  assert.match(html, /<strong>TermiNull<\/strong><small>ENTERPRISE FINANCIAL SUITE<\/small>/);
+  assert.match(html, /<strong>Termi<span class="brand-accent">Null<\/span><\/strong><small>ENTERPRISE FINANCIAL SUITE<\/small>/);
+  assert.match(html, /\.brand-wordmark strong \{ color:#fff/);
   assert.doesNotMatch(html, /<small>\/ TREASURY<\/small>|Enterprise financial suite · Lunul PoA/);
   assert.match(script, /<details class="nav-group" data-group=/);
   assert.match(script, /name:'People & partners'/);
@@ -237,6 +238,15 @@ test('all app-initiated on-chain actions collect the applicable LUN fee', () => 
   assert.match(script, /const BASE_TRANSACTION_FEE = '0\.01'/);
   assert.match(script, /const COMPANY_CREATION_FEE = '10'/);
   assert.match(script, /const DAO_DEPLOYMENT_FEE = '10'/);
+});
+
+test('homepage wordmarks omit the T logo and keep Termi white with Null purple', () => {
+  const homepage = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.doesNotMatch(homepage, /brand-mark|class="brand-mark"/);
+  assert.match(homepage, /\.brand-name \{[\s\S]*?color: #fff;/);
+  assert.match(homepage, /class="brand-name">Termi<span>Null<\/span>/);
+  assert.match(homepage, /class="dash-label">Termi<span>Null<\/span>/);
+  assert.equal((homepage.match(/class="brand-name">Termi<span>Null<\/span>/g) || []).length, 2);
 });
 
 test('ZK workspace previews shielding and withdrawals with every control disabled', () => {

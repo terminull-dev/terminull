@@ -67,25 +67,13 @@
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 0;
       flex-shrink: 0;
-    }
-    .brand-mark {
-      width: 39px;
-      height: 39px;
-      display: grid;
-      place-items: center;
-      border: 1px solid rgba(165,138,255,.35);
-      border-radius: 12px;
-      color: #d5c7ff;
-      background: linear-gradient(145deg,#302344,#17151f);
-      font-family: Manrope,sans-serif;
-      font-size: 22px;
-      font-weight: 800;
     }
     .brand-name {
       font: 800 19px Manrope,sans-serif;
       letter-spacing: -.8px;
+      color: #fff;
     }
     .brand-name span { color: var(--purple); }
     .brand-caption {
@@ -215,7 +203,7 @@
       background: #191820;
       gap: 10px;
     }
-    .dash-label { font-size: 11px; font-weight: 700; }
+    .dash-label { color: #fff; font-size: 11px; font-weight: 700; }
     .dash-label span { color: var(--purple); }
     .demo-label {
       font-size: 9px;
@@ -508,7 +496,6 @@
       .container { padding-inline: 17px; }
       .brand-name { font-size: 17px; }
       .brand-caption { font-size: 8px; letter-spacing: 1px; }
-      .brand-mark { width: 35px; height: 35px; }
       .nav-actions .btn { display: none; }
       .hero { padding-top: 48px; }
       h1 { font-size: 42px; }
@@ -546,7 +533,6 @@
 <header>
   <div class="container nav">
     <a class="brand" href="/" aria-label="TermiNull home">
-      <span class="brand-mark">T</span>
       <span>
         <span class="brand-name">Termi<span>Null</span></span>
         <span class="brand-caption">Enterprise Financial Suite</span>
@@ -595,7 +581,7 @@
       <div class="glow"></div>
       <div class="dashboard">
         <div class="dash-top">
-          <div class="dash-label">T <span>TERMINULL</span> <span style="color:#777284">/ TREASURY</span></div>
+          <div class="dash-label">Termi<span>Null</span> <span style="color:#777284">/ TREASURY</span></div>
           <span class="demo-label">ILLUSTRATIVE PREVIEW</span>
         </div>
 
@@ -960,7 +946,6 @@
     <div class="footer-main">
       <div class="footer-about">
         <a class="brand" href="/">
-          <span class="brand-mark">T</span>
           <span>
             <span class="brand-name">Termi<span>Null</span></span>
             <span class="brand-caption">Enterprise Financial Suite</span>

@@ -12,18 +12,43 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 test('wallet authentication scopes company, employee, and supplier APIs', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'terminull-api-'));
+  const rpcTransactions = new Map();
+  const rpcReceipts = new Map();
+  const rpcCallResults = new Map();
   const rpc = http.createServer((req, res) => {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
       const respond = item => {
-        const result = {
+        const defaults = {
           eth_chainId:'0x6d600',
           net_version:'448000',
           eth_blockNumber:'0x1',
           eth_getCode:'0x60006000',
           eth_call:`0x${'0'.repeat(62)}12`
-        }[item.method] ?? null;
+        };
+        const hash = item.params?.[0];
+        let result = defaults[item.method] ?? null;
+        if (item.method === 'eth_getTransactionByHash') result = rpcTransactions.get(hash) || null;
+        if (item.method === 'eth_getTransactionReceipt') result = rpcReceipts.get(hash) || null;
+        if (item.method === 'eth_call') {
+          result = rpcCallResults.get(item.params?.[0]?.data?.slice(0, 10)) || defaults.eth_call;
+        }
+        if (item.method === 'eth_getBlockByNumber') {
+          result = {
+            number:item.params?.[0] || '0x2',
+            hash:`0x${'b'.repeat(64)}`,
+            parentHash:`0x${'c'.repeat(64)}`,
+            timestamp:'0x6553f100',
+            nonce:'0x0000000000000000',
+            difficulty:'0x0',
+            gasLimit:'0x1c9c380',
+            gasUsed:'0x5208',
+            miner:'0x0000000000000000000000000000000000000000',
+            extraData:'0x',
+            transactions:[]
+          };
+        }
         return { jsonrpc:'2.0', id:item.id, result };
       };
       const request = JSON.parse(body);
@@ -102,6 +127,70 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
     return { response, data:await response.json() };
   }
 
+  function registerTransaction(hash, from, to, events = [], { data = '0x', contractAddress = null } = {}) {
+    const blockNumber = '0x2';
+    const blockHash = `0x${'b'.repeat(64)}`;
+    rpcTransactions.set(hash, {
+      hash,
+      from,
+      to,
+      input:data,
+      nonce:'0x0',
+      gas:'0x5208',
+      gasPrice:'0x3b9aca00',
+      value:'0x0',
+      v:'0x1',
+      r:`0x${'1'.repeat(64)}`,
+      s:`0x${'1'.repeat(64)}`,
+      chainId:'0x6d600',
+      blockNumber,
+      blockHash,
+      transactionIndex:'0x0',
+      type:'0x0'
+    });
+    rpcReceipts.set(hash, {
+      transactionHash:hash,
+      transactionIndex:'0x0',
+      blockHash,
+      blockNumber,
+      from,
+      to,
+      cumulativeGasUsed:'0x5208',
+      gasUsed:'0x5208',
+      contractAddress,
+      logsBloom:`0x${'0'.repeat(512)}`,
+      status:'0x1',
+      type:'0x0',
+      logs:events.map(({ address, iface, name, args }, index) => {
+        const encoded = iface.encodeEventLog(iface.getEvent(name), args);
+        return {
+          address,
+          topics:encoded.topics,
+          data:encoded.data,
+          blockNumber,
+          transactionHash:hash,
+          transactionIndex:'0x0',
+          blockHash,
+          logIndex:`0x${index.toString(16)}`,
+          removed:false
+        };
+      })
+    });
+  }
+
+  function registerConfirmedTransfer(hash, from, to, amount) {
+    const tokenAddress = '0x7ec3659A8225ED474D7c662126616aE08545C29b';
+    const transferInterface = new ethers.Interface([
+      'event Transfer(address indexed from,address indexed to,uint256 value)'
+    ]);
+    registerTransaction(hash, from, tokenAddress, [{
+      address:tokenAddress,
+      iface:transferInterface,
+      name:'Transfer',
+      args:[from, to, amount]
+    }]);
+  }
+
   const owner = ethers.Wallet.createRandom();
   const employee = ethers.Wallet.createRandom();
   const supplier = ethers.Wallet.createRandom();
@@ -123,12 +212,39 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
   assert.equal(invalidImport.response.status, 400);
   assert.equal((await request(ownerAuth, `/api/org/${serial}/employees`)).data.length, 1);
 
+  const importedEmployee = ethers.Wallet.createRandom();
+  const employeeImport = await request(ownerAuth, `/api/org/${serial}/bulk/employees`, 'POST', {
+    rows:[{ name:'Imported Employee', wallet:importedEmployee.address, title:'Analyst', salary:'50' }]
+  });
+  assert.equal(employeeImport.response.status, 201);
+  assert.equal(employeeImport.data.imported, 1);
+
+  const supplierAdded = await request(ownerAuth, `/api/org/${serial}/suppliers`, 'POST', {
+    name:'Test Supplier', wallet:supplier.address, email:'supplier@example.test'
+  });
+  assert.equal(supplierAdded.response.status, 201);
+  const importedSupplier = ethers.Wallet.createRandom();
+  const supplierImport = await request(ownerAuth, `/api/org/${serial}/bulk/suppliers`, 'POST', {
+    rows:[{ name:'Imported Supplier', wallet:importedSupplier.address, email:'imported@example.test' }]
+  });
+  assert.equal(supplierImport.response.status, 201);
+  assert.equal(supplierImport.data.imported, 1);
+  assert.equal((await request(ownerAuth, `/api/org/${serial}/suppliers`)).data.length, 2);
+  assert.equal((await request(ownerAuth, `/api/org/${serial}/treasury`)).data.dao, null);
+  assert.equal((await request(ownerAuth, `/api/org/${serial}/escrow`)).data.escrow, null);
+  const contractsResponse = await fetch(`${base}/api/contracts`, { headers:ownerAuth.headers });
+  assert.equal(contractsResponse.status, 200);
+  const contracts = await contractsResponse.json();
+  assert.ok(contracts.CompanyDAO.abi.length > 0);
+  assert.ok(contracts.CompanyEscrow.abi.length > 0);
+
   const employeeAuth = await signIn(employee);
   assert.equal((await request(employeeAuth, `/api/org/${serial}/employees`)).response.status, 200);
   assert.equal((await request(employeeAuth, `/api/org/${serial}/invoices`)).response.status, 403);
   assert.equal((await request(employeeAuth, `/api/org/${serial}/report`)).response.status, 403);
 
   const supplierAuth = await signIn(supplier);
+  assert.equal((await request(supplierAuth, `/api/org/${serial}/suppliers`)).data.length, 1);
   const invoice = await request(supplierAuth, `/api/org/${serial}/invoices`, 'POST', {
     invoiceNumber:'INV-1', amount:'10.50', dueDate:'2030-01-01', description:'Integration test invoice'
   });
@@ -139,6 +255,68 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
   assert.equal(companyInvoices.response.status, 200);
   assert.equal(companyInvoices.data.length, 1);
   assert.equal(companyInvoices.data[0].supplier_wallet.toLowerCase(), supplier.address.toLowerCase());
+  assert.equal((await request(supplierAuth, '/api/my/invoices')).data.length, 1);
+
+  const tokenAddress = '0x7ec3659A8225ED474D7c662126616aE08545C29b';
+  const escrowAddress = ethers.getAddress(`0x${'a'.repeat(40)}`);
+  const escrowArtifact = contracts.CompanyEscrow;
+  const escrowDeploymentData = `${escrowArtifact.bytecode}${ethers.AbiCoder.defaultAbiCoder()
+    .encode(['address', 'address'], [owner.address, tokenAddress]).slice(2)}`;
+  const escrowDeployHash = `0x${'e'.repeat(64)}`;
+  registerTransaction(escrowDeployHash, owner.address, null, [], {
+    data:escrowDeploymentData,
+    contractAddress:escrowAddress
+  });
+  rpcCallResults.set(ethers.id('company()').slice(0, 10), ethers.AbiCoder.defaultAbiCoder().encode(['address'], [owner.address]));
+  rpcCallResults.set(ethers.id('token()').slice(0, 10), ethers.AbiCoder.defaultAbiCoder().encode(['address'], [tokenAddress]));
+  const escrowDeployment = await request(ownerAuth, `/api/org/${serial}/contracts/escrow`, 'POST', {
+    txHash:escrowDeployHash
+  });
+  assert.equal(escrowDeployment.response.status, 200);
+  assert.equal(escrowDeployment.data.address, escrowAddress);
+
+  const escrowInterface = new ethers.Interface([
+    'event EscrowCreated(uint256 indexed escrowId,bytes32 indexed invoiceId,address indexed supplier,address token,uint256 amount,uint64 refundAfter)',
+    'event EscrowReleased(uint256 indexed escrowId,address indexed supplier,uint256 amount)',
+    'event EscrowRefunded(uint256 indexed escrowId,address indexed company,uint256 amount)'
+  ]);
+  const tokenInterface = new ethers.Interface([
+    'event Transfer(address indexed from,address indexed to,uint256 value)'
+  ]);
+  const amountRaw = ethers.parseUnits('10.50', 18);
+  function registerEscrowReceipt(hash, eventName, escrowId, invoiceId, transferFrom, transferTo) {
+    const events = [{
+      address:escrowAddress,
+      iface:escrowInterface,
+      name:eventName,
+      args:eventName === 'EscrowCreated'
+        ? [escrowId, invoiceId, supplier.address, tokenAddress, amountRaw, 4_000_000_000n]
+        : [escrowId, transferTo, amountRaw]
+    }, {
+      address:tokenAddress,
+      iface:tokenInterface,
+      name:'Transfer',
+      args:[transferFrom, transferTo, amountRaw]
+    }];
+    registerTransaction(hash, owner.address, escrowAddress, events);
+  }
+
+  const firstInvoiceId = ethers.id(String(invoice.data.id));
+  const firstFundingHash = `0x${'f'.repeat(64)}`;
+  registerEscrowReceipt(firstFundingHash, 'EscrowCreated', 1n, firstInvoiceId, owner.address, escrowAddress);
+  const firstFunding = await request(ownerAuth, `/api/org/${serial}/invoices/${invoice.data.id}/fund`, 'POST', {
+    txHash:firstFundingHash
+  });
+  assert.equal(firstFunding.response.status, 200);
+  assert.equal(firstFunding.data.escrow_id, '1');
+  const releaseHash = `0x${'1'.repeat(64)}`;
+  registerEscrowReceipt(releaseHash, 'EscrowReleased', 1n, firstInvoiceId, escrowAddress, supplier.address);
+  const release = await request(ownerAuth, `/api/org/${serial}/invoices/${invoice.data.id}/release`, 'POST', {
+    txHash:releaseHash
+  });
+  assert.equal(release.response.status, 200);
+  assert.equal(release.data.status, 'PAID');
+  assert.equal((await request(ownerAuth, `/api/org/${serial}/invoices`)).data[0].status, 'PAID');
 
   const applicant = ethers.Wallet.createRandom();
   const applicantAuth = await signIn(applicant);
@@ -152,6 +330,95 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
   assert.equal(approved.response.status, 200);
   const applicantSession = await request(applicantAuth, '/api/session');
   assert.equal(applicantSession.data.employeeRows[0].serial, serial);
+
+  const missingReceipt = await request(ownerAuth, `/api/org/${serial}/payments/confirm`, 'POST', {
+    txHash:`0x${'a'.repeat(64)}`, recipient:employee.address, amount:'1.25', memo:'Salary payment'
+  });
+  assert.equal(missingReceipt.response.status, 400);
+
+  const paymentHash = `0x${'d'.repeat(64)}`;
+  registerConfirmedTransfer(paymentHash, owner.address, employee.address, ethers.parseUnits('1.25', 18));
+  const payment = await request(ownerAuth, `/api/org/${serial}/payments/confirm`, 'POST', {
+    txHash:paymentHash, recipient:employee.address, amount:'1.25', memo:'Salary payment'
+  });
+  assert.equal(payment.response.status, 200);
+  const secondInvoice = await request(supplierAuth, `/api/org/${serial}/invoices`, 'POST', {
+    invoiceNumber:'INV-2', amount:'10.50', dueDate:'2030-01-02', description:'Refund integration test invoice'
+  });
+  assert.equal(secondInvoice.response.status, 201);
+  const secondInvoiceId = ethers.id(String(secondInvoice.data.id));
+  const secondFundingHash = `0x${'2'.repeat(64)}`;
+  registerEscrowReceipt(secondFundingHash, 'EscrowCreated', 2n, secondInvoiceId, owner.address, escrowAddress);
+  const secondFunding = await request(ownerAuth, `/api/org/${serial}/invoices/${secondInvoice.data.id}/fund`, 'POST', {
+    txHash:secondFundingHash
+  });
+  assert.equal(secondFunding.response.status, 200);
+  const refundHash = `0x${'3'.repeat(64)}`;
+  registerEscrowReceipt(refundHash, 'EscrowRefunded', 2n, secondInvoiceId, escrowAddress, owner.address);
+  const refund = await request(ownerAuth, `/api/org/${serial}/invoices/${secondInvoice.data.id}/refund`, 'POST', {
+    txHash:refundHash
+  });
+  assert.equal(refund.response.status, 200);
+  assert.equal(refund.data.status, 'REFUNDED');
+
+  const daoAddress = ethers.getAddress(`0x${'b'.repeat(40)}`);
+  const daoArtifact = contracts.CompanyDAO;
+  const daoDeploymentData = `${daoArtifact.bytecode}${ethers.AbiCoder.defaultAbiCoder()
+    .encode(['address'], [owner.address]).slice(2)}`;
+  const daoDeployHash = `0x${'4'.repeat(64)}`;
+  registerTransaction(daoDeployHash, owner.address, null, [], {
+    data:daoDeploymentData,
+    contractAddress:daoAddress
+  });
+  rpcCallResults.set(ethers.id('owner()').slice(0, 10), ethers.AbiCoder.defaultAbiCoder().encode(['address'], [owner.address]));
+  rpcCallResults.set(ethers.id('quorumPercent()').slice(0, 10), ethers.AbiCoder.defaultAbiCoder().encode(['uint16'], [51]));
+  rpcCallResults.set(ethers.id('timelockSeconds()').slice(0, 10), ethers.AbiCoder.defaultAbiCoder().encode(['uint64'], [86400]));
+  rpcCallResults.set(ethers.id('proposalCount()').slice(0, 10), ethers.AbiCoder.defaultAbiCoder().encode(['uint256'], [1]));
+  rpcCallResults.set(ethers.id('proposals(uint256)').slice(0, 10), ethers.AbiCoder.defaultAbiCoder().encode(
+    ['address', 'address', 'uint256', 'uint64', 'uint256', 'uint256', 'bool'],
+    [tokenAddress, employee.address, ethers.parseUnits('1.25', 18), 1000, 1, 0, true]
+  ));
+  const daoDeployment = await request(ownerAuth, `/api/org/${serial}/contracts/dao`, 'POST', {
+    txHash:daoDeployHash
+  });
+  assert.equal(daoDeployment.response.status, 200);
+  assert.equal(daoDeployment.data.address, daoAddress);
+  const treasury = await request(ownerAuth, `/api/org/${serial}/treasury`);
+  assert.equal(treasury.data.dao, daoAddress);
+  assert.equal(treasury.data.quorum, 51);
+  assert.equal(treasury.data.proposalCount, 1);
+  const daoInterface = new ethers.Interface([
+    'event ProposalExecuted(uint256 indexed proposalId)'
+  ]);
+  const daoPaymentHash = `0x${'5'.repeat(64)}`;
+  registerTransaction(daoPaymentHash, owner.address, daoAddress, [{
+    address:daoAddress,
+    iface:daoInterface,
+    name:'ProposalExecuted',
+    args:[1n]
+  }, {
+    address:tokenAddress,
+    iface:tokenInterface,
+    name:'Transfer',
+    args:[daoAddress, employee.address, ethers.parseUnits('1.25', 18)]
+  }]);
+  const daoPayment = await request(ownerAuth, `/api/org/${serial}/dao/1/confirm`, 'POST', {
+    txHash:daoPaymentHash
+  });
+  assert.equal(daoPayment.response.status, 200);
+  assert.equal(daoPayment.data.amount_raw, ethers.parseUnits('1.25', 18).toString());
+
+  const report = await request(ownerAuth, `/api/org/${serial}/report`);
+  assert.equal(report.response.status, 200);
+  assert.equal(report.data.transactions.length, 8);
+  assert.equal(report.data.employees.length, 3);
+  assert.equal(report.data.suppliers.length, 2);
+  assert.equal(report.data.invoices.length, 2);
+  const employeeActivity = await request(employeeAuth, `/api/org/${serial}/activity`);
+  assert.equal(employeeActivity.data.length, 2);
+  assert.deepEqual(new Set(employeeActivity.data.map(item => item.tx_hash)), new Set([paymentHash, daoPaymentHash]));
+  const supplierActivity = await request(supplierAuth, `/api/org/${serial}/activity`);
+  assert.equal(supplierActivity.data.length, 3);
 });
 
 test('workspace and wallet sign-in remain available when the RPC is offline', async t => {

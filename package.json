@@ -20,5 +20,8 @@
   },
   "allowScripts": {
     "sqlite3@6.0.1": true
+  },
+  "devDependencies": {
+    "@ethereumjs/vm": "^10.1.3"
   }
 }

@@ -29,6 +29,14 @@ test('DAO and escrow contracts compile for the Paris EVM target', () => {
 
 test('dashboard inline JavaScript parses', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'app.html'), 'utf8');
+  const homepage = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  assert.match(html, /class="hero glass-panel"/);
+  assert.match(html, /class="workspace-layout"/);
+  assert.match(homepage, /class="hero"/);
+  assert.match(homepage, /Open company workspace/);
+  assert.doesNotMatch(`${html}\n${homepage}`, /27,500|35,000|SQLite-backed demo|TERM-ORG-DEMO/);
+  assert.match(html, /Shielding and unshielding are disabled/);
+  assert.match(html, /pool deposits and withdrawals are disabled/);
   const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
     .map(match => match[1])
     .filter(script => script.trim());

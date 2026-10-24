@@ -3,29 +3,89 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Terminull | Company treasury</title>
+  <meta name="theme-color" content="#141617">
+  <title>TermiNull | Company Treasury</title>
   <style>
-    :root { color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#111827;color:#f3f4f6; }
+    :root { color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#141617;color:#f1f5f9; }
     * { box-sizing:border-box; }
-    body { margin:0;min-height:100vh;background:radial-gradient(circle at 25% 0,#293146,#111827 55%); }
-    header,main,footer { max-width:1100px;margin:auto;padding:1.25rem clamp(1rem,4vw,3rem); }
-    header { display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #374151; }
-    main { padding-top:12vh;padding-bottom:12vh; }
-    h1 { font-size:clamp(2rem,6vw,4rem);line-height:1.08;margin:.5rem 0 1rem; }
-    p { max-width:680px;color:#cbd5e1;line-height:1.7; }
-    a { color:#fff;text-decoration:none;border:1px solid #8b5cf6;background:#5b21b6;padding:.8rem 1rem;border-radius:.65rem;display:inline-block;margin-top:1rem; }
-    .muted { color:#9ca3af;font-size:.9rem; }
+    body { margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0,#25282a 0,#1b1d1f 50%,#141617 100%); }
+    header { border-bottom:1px solid rgba(255,255,255,.09);background:rgba(24,26,28,.94); }
+    .topbar,main,footer { width:min(1500px,100%);margin:0 auto;padding-left:clamp(1rem,4vw,3rem);padding-right:clamp(1rem,4vw,3rem); }
+    .topbar { min-height:68px;display:flex;align-items:center;justify-content:space-between;gap:1rem; }
+    .brand { color:#fff;text-decoration:none;font-size:1.15rem;font-weight:800;letter-spacing:-.03em; }
+    .subbrand,.muted { color:#9ca3af; }
+    .subbrand { margin-top:.2rem;font-size:.78rem; }
+    .network { border:1px solid rgba(170,180,190,.22);border-radius:999px;padding:.4rem .75rem;color:#cbd5e1;background:rgba(84,96,107,.15);font-size:.72rem; }
+    main { padding-top:2.5rem;padding-bottom:2.5rem; }
+    .hero { position:relative;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.8fr);gap:2.5rem;padding:clamp(1.4rem,4vw,3rem);border:1px solid rgba(255,255,255,.08);border-radius:1.6rem;background:rgba(29,32,34,.94);box-shadow:0 25px 60px rgba(0,0,0,.4),inset 0 1px 1px rgba(255,255,255,.07); }
+    .hero::before,.hero::after { content:"";position:absolute;width:20rem;height:20rem;border-radius:50%;filter:blur(80px);opacity:.12;pointer-events:none; }
+    .hero::before { top:-13rem;right:-5rem;background:#aab4be; } .hero::after { bottom:-15rem;left:15%;background:#68806f; }
+    .hero-copy,.hero-aside { position:relative;z-index:1; }
+    .eyebrow { display:inline-block;margin-bottom:1rem;border:1px solid rgba(170,180,190,.22);border-radius:999px;padding:.4rem .7rem;color:#cbd5e1;background:rgba(84,96,107,.15);font-size:.65rem;font-weight:750;letter-spacing:.11em;text-transform:uppercase; }
+    h1 { max-width:800px;margin:0 0 1rem;font-size:clamp(2.2rem,6vw,4.5rem);line-height:1.03;letter-spacing:-.055em; }
+    .hero-copy p { max-width:760px;color:#b8c0c7;font-size:1rem;line-height:1.75; }
+    .actions { display:flex;flex-wrap:wrap;gap:.7rem;margin-top:1.6rem; }
+    .button { display:inline-flex;align-items:center;justify-content:center;min-height:46px;border:1px solid rgba(255,255,255,.17);border-radius:.8rem;padding:.7rem 1rem;color:#f8fafc;background:linear-gradient(110deg,#52616c,#443f52);font-weight:700;text-decoration:none;transition:filter .15s ease,transform .15s ease; }
+    .button:hover { filter:brightness(1.15);transform:translateY(-1px); }
+    .button.secondary { background:rgba(15,17,18,.5);color:#d6dce1; }
+    .hero-aside { display:grid;gap:.8rem;align-content:center; }
+    .status-card,.feature { border:1px solid rgba(255,255,255,.07);border-radius:1rem;background:rgba(42,45,47,.76);box-shadow:0 10px 30px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.04); }
+    .status-card { padding:1.1rem; }
+    .status-card span { display:block;color:#9ca3af;font-size:.67rem;letter-spacing:.1em;text-transform:uppercase; }
+    .status-card strong { display:block;margin:.45rem 0;color:#e4e9ed;font-size:1.15rem; }
+    .status-card p { margin:0;color:#9ca3af;font-size:.78rem;line-height:1.55; }
+    .features { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.9rem;margin-top:1rem; }
+    .feature { padding:1.15rem; }
+    .feature h2 { margin:0 0 .5rem;font-size:.95rem; }
+    .feature p { margin:0;color:#9ca3af;font-size:.79rem;line-height:1.6; }
+    footer { padding-top:0;padding-bottom:1.5rem;color:#899198;font-size:.73rem;line-height:1.6; }
+    @media (max-width:900px) { .hero { grid-template-columns:1fr; }.features { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+    @media (max-width:560px) { .topbar { align-items:flex-start;padding-top:.8rem;padding-bottom:.8rem; }.network { font-size:.65rem; }.features { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
-  <header><strong>Terminull</strong><span class="muted">Company treasury</span></header>
+  <header>
+    <div class="topbar">
+      <div>
+        <a class="brand" href="/">TermiNull v1.0</a>
+        <div class="subbrand">Company treasury · Lunul PoA</div>
+      </div>
+      <span class="network">Configured network · chain 448000</span>
+    </div>
+  </header>
   <main>
-    <p class="muted">WALLET-BASED COMPANY WORKSPACES · LUNUL NETWORK · CHAIN 448000</p>
-    <h1>Company payments, invoices and treasury governance.</h1>
-    <p>Sign in with an EVM wallet to manage employee and supplier records, upload validated CSV manifests, submit supplier invoices by company serial, and review confirmed transaction receipts. USDT is read from the configured 18-decimal token contract.</p>
-    <p>DAO and escrow contracts are deployed from the connected company wallet when configured. Shielded pool deposits and withdrawals remain disabled until note recovery and enforced proof verification are available.</p>
-    <a href="/app">Open company workspace →</a>
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">Wallet-connected company finance</span>
+        <h1>Treasury operations, connected to your wallet.</h1>
+        <p>Manage employee and supplier records, payroll transfers, supplier invoices, escrow, DAO governance, and confirmed transaction reporting in one company workspace.</p>
+        <div class="actions">
+          <a class="button" href="/app">Open company workspace</a>
+          <a class="button secondary" href="/app">Connect wallet</a>
+        </div>
+      </div>
+      <div class="hero-aside">
+        <article class="status-card">
+          <span>Settlement asset</span>
+          <strong>USDT · 18 decimals</strong>
+          <p>Balances and transfers use the configured token contract on chain 448000.</p>
+        </article>
+        <article class="status-card">
+          <span>Shielded pool</span>
+          <strong>Inactive</strong>
+          <p>Shielding and unshielding remain disabled pending the redeployed pool, verifier, and matching proof interfaces.</p>
+        </article>
+      </div>
+    </section>
+    <section class="features" aria-label="Workspace features">
+      <article class="feature"><h2>Employees & payroll</h2><p>Maintain wallet-based employee records, import validated CSV rosters, and submit direct USDT payments.</p></article>
+      <article class="feature"><h2>Suppliers & invoices</h2><p>Onboard suppliers, submit invoices against the company serial, and track payment status.</p></article>
+      <article class="feature"><h2>DAO & escrow</h2><p>Deploy company templates and review on-chain treasury and invoice escrow activity.</p></article>
+      <article class="feature"><h2>Reports & exports</h2><p>Review company records and confirmed transaction receipts, with CSV export and upload templates.</p></article>
+    </section>
   </main>
-  <footer class="muted">This application does not provide audit, sanctions-screening, encryption, tax, or compliance services unless separately integrated and verified.</footer>
+  <footer>
+    Company membership and access are tied to the connected wallet. Reports include confirmed network activity only. Privacy-pool balances and actions are not available.
+  </footer>
 </body>
 </html>

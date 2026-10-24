@@ -6,59 +6,164 @@
   <title>Terminull | Company treasury</title>
   <script src="/public/ethers.umd.min.js"></script>
   <style>
-    :root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background:#111827; color:#e5e7eb; }
+    :root { color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:#141617;color:#f1f5f9; }
     * { box-sizing:border-box; }
-    body { margin:0; background:radial-gradient(circle at 25% 0,#293146,#111827 52%); min-height:100vh; }
-    header { position:sticky;top:0;z-index:2;background:#111827ed;border-bottom:1px solid #374151;padding:1rem clamp(1rem,4vw,3rem);display:flex;align-items:center;justify-content:space-between;gap:1rem; }
-    main { max-width:1200px;margin:0 auto;padding:2rem clamp(1rem,4vw,3rem); }
-    h1,h2,h3,p { margin-top:0; } h1 { font-size:1.7rem; } h2 { font-size:1.2rem; } h3 { font-size:1rem; }
-    button,a.button { border:1px solid #53647c;background:#263449;color:#f9fafb;border-radius:.6rem;padding:.65rem .9rem;font-weight:650;text-decoration:none;cursor:pointer; }
-    button:hover,a.button:hover { background:#354761; } button:disabled { opacity:.45;cursor:not-allowed; }
-    input,select,textarea { width:100%;border:1px solid #4b5563;border-radius:.5rem;background:#111827;color:#f9fafb;padding:.65rem .75rem;font:inherit; }
-    label { display:block;font-size:.84rem;color:#cbd5e1;margin:.8rem 0 .35rem; }
-    .row { display:flex;align-items:center;gap:.7rem;flex-wrap:wrap; } .row>* { flex:1; }
-    .grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1rem; }
-    .card { border:1px solid #374151;background:#1f293be8;border-radius:.9rem;padding:1.1rem;margin:1rem 0; }
-    .muted { color:#9ca3af; } .small { font-size:.82rem; } .mono { font-family:ui-monospace,SFMono-Regular,monospace;overflow-wrap:anywhere; }
-    .notice { border:1px solid #52627a;background:#1f2c3f;border-radius:.7rem;padding:.8rem 1rem;margin:1rem 0;white-space:pre-wrap; }
+    body { margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0,#25282a 0,#1b1d1f 50%,#141617 100%);background-attachment:fixed; }
+    button,input,select,textarea { font:inherit; }
+    button { border:1px solid rgba(255,255,255,.14);border-radius:.8rem;padding:.7rem .95rem;color:#f8fafc;background:linear-gradient(110deg,#52616c,#443f52);font-weight:650;cursor:pointer;transition:background .16s ease,border-color .16s ease; }
+    button:hover { background:linear-gradient(110deg,#687681,#514b60);border-color:rgba(255,255,255,.25); }
+    button:disabled { opacity:.45;cursor:not-allowed; }
+    input,select,textarea { width:100%;border:1px solid rgba(255,255,255,.14);border-radius:.65rem;background:#17191a;color:#f8fafc;padding:.7rem .8rem; }
+    input:focus,select:focus,textarea:focus { outline:2px solid rgba(168,180,190,.5);outline-offset:1px; }
+    label { display:block;font-size:.82rem;color:#cbd5e1;margin:.8rem 0 .35rem; }
+    h1,h2,h3,p { margin-top:0; } h1 { font-size:clamp(1.55rem,3vw,2.2rem); } h2 { font-size:1.08rem; } h3 { font-size:.96rem; }
+    header { position:sticky;top:0;z-index:3;border-bottom:1px solid rgba(255,255,255,.09);background:rgba(24,26,28,.96);backdrop-filter:blur(20px); }
+    .topbar,.page-shell,.site-footer { width:min(1600px,100%);margin:0 auto;padding-left:clamp(1rem,4vw,3rem);padding-right:clamp(1rem,4vw,3rem); }
+    .topbar { min-height:68px;display:flex;align-items:center;justify-content:space-between;gap:1rem; }
+    .brand { color:#fff;text-decoration:none;font-weight:800;font-size:1.15rem;letter-spacing:-.03em; }
+    .brand-note,.small { font-size:.78rem; } .brand-note,.muted { color:#9ca3af; }
+    .header-actions,.row { display:flex;align-items:center;gap:.7rem;flex-wrap:wrap; }
+    .header-actions { justify-content:flex-end; }
+    .status-pill,.badge { display:inline-flex;align-items:center;gap:.5rem;border:1px solid rgba(148,163,184,.25);border-radius:999px;padding:.35rem .7rem;color:#cbd5e1;background:rgba(15,17,18,.56);font-size:.7rem;white-space:nowrap; }
+    .status-pill::before { content:"";width:.45rem;height:.45rem;border-radius:50%;background:#87939e; }
+    .page-shell { padding-top:2rem;padding-bottom:2rem; }
+    .glass-panel { position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:1.5rem;background:rgba(29,32,34,.94);box-shadow:0 25px 60px rgba(0,0,0,.4),inset 0 1px 1px rgba(255,255,255,.07); }
+    .hero { display:grid;grid-template-columns:minmax(0,1.45fr) minmax(250px,.9fr);gap:2rem;padding:clamp(1.25rem,3vw,2.3rem);margin-bottom:1.5rem; }
+    .hero::before,.hero::after { content:"";position:absolute;width:19rem;height:19rem;border-radius:50%;filter:blur(75px);opacity:.12;pointer-events:none; }
+    .hero::before { top:-12rem;right:-5rem;background:#aab4be; } .hero::after { bottom:-14rem;left:20%;background:#68806f; }
+    .hero-copy,.hero-stats { position:relative;z-index:1; }
+    .hero-eyebrow { display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem; }
+    .hero-eyebrow span { border:1px solid rgba(170,180,190,.22);border-radius:999px;padding:.35rem .65rem;color:#cbd5e1;background:rgba(84,96,107,.15);font-size:.62rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase; }
+    .hero-copy h1 { margin-bottom:.65rem;font-weight:800;letter-spacing:-.04em; }
+    .hero-copy>p,#signedOut p { max-width:720px;color:#b8c0c7;line-height:1.7;font-size:.9rem; }
+    .identifier { max-width:640px;margin-top:1.2rem;padding:.9rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;border:1px solid rgba(255,255,255,.09);border-radius:1rem;background:rgba(10,12,13,.62); }
+    .identifier-label { color:#9ca3af;font-size:.63rem;letter-spacing:.1em;text-transform:uppercase; }
+    .identifier-value { margin-top:.25rem;color:#d5dce1;font-size:.85rem;font-weight:700;overflow-wrap:anywhere; }
+    .hero-stats { display:grid;grid-template-columns:1fr;gap:.75rem;align-content:center; }
+    .stat-card,.card { border:1px solid rgba(255,255,255,.07);border-radius:1rem;background:rgba(42,45,47,.76);box-shadow:0 10px 30px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.04); }
+    .stat-card { padding:1rem 1.1rem; }
+    .stat-label { color:#9ca3af;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase; }
+    .stat-value { display:block;margin-top:.4rem;color:#e4e9ed;font-size:1.1rem;font-weight:750;overflow-wrap:anywhere; }
+    .stat-detail { margin-top:.3rem;color:#9ca3af;font-size:.72rem; }
+    .notice { border:1px solid rgba(148,163,184,.25);border-radius:.9rem;background:rgba(29,32,34,.94);padding:.85rem 1rem;margin:1rem 0;white-space:pre-wrap; }
     .notice.error { border-color:#b91c1c;background:#3b1d24; } .notice.success { border-color:#15803d;background:#123522; }
-    .hidden { display:none!important; } .tabs { display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0; } .tabs button[aria-current="page"] { background:#4c1d95;border-color:#a78bfa; }
-    table { width:100%;border-collapse:collapse;font-size:.88rem; } th,td { text-align:left;padding:.65rem;border-bottom:1px solid #374151;vertical-align:top; } th { color:#cbd5e1; }
-    .table-wrap { overflow:auto; } code { color:#c4b5fd; } .badge { border:1px solid #58677c;border-radius:99px;padding:.2rem .55rem;font-size:.75rem;color:#cbd5e1; }
-    .danger { color:#fecaca; } .success-text { color:#86efac; } .actions { display:flex;gap:.4rem;flex-wrap:wrap; } .actions button { padding:.4rem .6rem;font-size:.8rem; }
-    .form-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:.25rem 1rem; }
-    footer { max-width:1200px;margin:0 auto;padding:1rem clamp(1rem,4vw,3rem) 2rem;color:#9ca3af;font-size:.8rem; }
+    .hidden { display:none!important; } #signedOut { margin:1.5rem 0;padding:1.5rem; }
+    .workspace-context { display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,.65fr);gap:1rem;padding:1rem;margin-bottom:1rem; }
+    .workspace-context label { margin-top:0; }
+    .workspace-layout { display:grid;grid-template-columns:270px minmax(0,1fr);gap:1.25rem;align-items:start; }
+    .sidebar { padding:1rem; }
+    .sidebar-heading { padding:.4rem .55rem .8rem;margin-bottom:.5rem;border-bottom:1px solid rgba(255,255,255,.07);color:#aab4be;font-size:.65rem;font-weight:750;letter-spacing:.12em;text-transform:uppercase; }
+    .tabs { display:flex;flex-direction:column;gap:.35rem; }
+    .tabs button { width:100%;text-align:left;border-color:transparent;background:transparent;color:#cbd5e1;font-size:.82rem;font-weight:550; }
+    .tabs button:hover { background:rgba(255,255,255,.06); }
+    .tabs button[aria-current="page"] { border-color:rgba(170,180,190,.22);background:rgba(84,96,107,.2);color:#fff; }
+    .privacy-status { margin-top:1rem;padding:.85rem;border:1px solid rgba(255,255,255,.07);border-radius:.9rem;background:rgba(12,14,15,.4); }
+    .privacy-status strong { display:block;margin-bottom:.35rem;color:#cbd5e1;font-size:.72rem; }
+    .privacy-status p { margin:0;color:#9ca3af;font-size:.72rem;line-height:1.5; }
+    .viewport { min-height:620px;padding:clamp(1rem,2vw,1.75rem); }
+    #content { font-size:.85rem; }
+    .grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.85rem; }
+    .card { padding:1.1rem;margin:0 0 .9rem; } .card:hover { border-color:rgba(176,185,193,.18); }
+    .row>* { flex:1; } .mono,code { font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere; }
+    code { color:#cbd5e1; } .danger { color:#fecaca; } .success-text { color:#86efac; }
+    .actions { display:flex;gap:.45rem;flex-wrap:wrap; } .actions button { padding:.5rem .7rem;font-size:.78rem; }
+    .form-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.25rem .9rem; }
+    .table-wrap { overflow:auto;border-radius:.8rem; }
+    table { width:100%;border-collapse:collapse;font-size:.79rem; }
+    th,td { padding:.7rem .6rem;border-bottom:1px solid rgba(255,255,255,.07);text-align:left;vertical-align:top; }
+    th { color:#cbd5e1;font-size:.7rem;letter-spacing:.04em; }
+    footer { color:#899198;font-size:.73rem; } .site-footer { padding-top:0;padding-bottom:1.5rem;line-height:1.6; }
+    @media (max-width:900px) {
+      .hero { grid-template-columns:1fr; } .hero-stats { grid-template-columns:repeat(3,minmax(0,1fr)); }
+      .workspace-layout { grid-template-columns:1fr; } .tabs { flex-direction:row;overflow:auto;padding-bottom:.25rem; }
+      .tabs button { width:auto;white-space:nowrap; } .viewport { min-height:0; }
+    }
+    @media (max-width:620px) {
+      .topbar { align-items:flex-start;padding-top:.8rem;padding-bottom:.8rem; }
+      .header-actions { flex-direction:column;align-items:flex-end; } .hero-stats { grid-template-columns:1fr; }
+      .workspace-context { grid-template-columns:1fr; }
+    }
   </style>
 </head>
 <body>
   <header>
-    <div><strong>Terminull</strong><div class="small muted">Company treasury · Lunul PoA</div></div>
-    <div class="row" style="flex:0 1 auto">
-      <span id="networkStatus" class="badge">Network not checked</span>
-      <button id="walletButton" onclick="connectWallet()">Connect wallet</button>
+    <div class="topbar">
+      <div>
+        <a class="brand" href="/">TermiNull v1.0</a>
+        <div class="brand-note">Company treasury · Lunul PoA</div>
+      </div>
+      <div class="header-actions">
+        <span id="networkStatus" class="status-pill">Network not checked</span>
+        <button id="walletButton" onclick="connectWallet()">Connect wallet</button>
+      </div>
     </div>
   </header>
-  <main>
-    <h1>Company treasury</h1>
-    <p class="muted">Wallet-based access to company records and confirmed on-chain activity. Shielded-pool actions are unavailable until proof verification and note recovery are configured.</p>
+  <main class="page-shell">
+    <section class="hero glass-panel">
+      <div class="hero-copy">
+        <div class="hero-eyebrow">
+          <span>Wallet-connected company finance</span>
+          <span id="userRoleBadge">Role: Guest</span>
+        </div>
+        <h1>Company treasury terminal</h1>
+        <p>Manage employee and supplier records, payroll transfers, company invoices, escrow, DAO governance, and verified transaction reports from your connected wallet.</p>
+        <div id="orgSerialBox" class="identifier">
+          <div>
+            <div class="identifier-label">Company identifier</div>
+            <div id="orgSerialDisplay" class="identifier-value">Connect a wallet to view your workspace</div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-stats">
+        <article class="stat-card">
+          <div class="stat-label">Connected wallet USDT</div>
+          <strong id="usdtBalanceDisplay" class="stat-value">Connect wallet to read balance</strong>
+          <div class="stat-detail">18 decimals · on-chain balance</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Network</div>
+          <strong class="stat-value">Lunul · 448000</strong>
+          <div class="stat-detail">Wallet actions require this chain</div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label">Privacy pool</div>
+          <strong class="stat-value">Inactive</strong>
+          <div class="stat-detail">Shielding and unshielding are disabled</div>
+        </article>
+      </div>
+    </section>
     <div id="notice" class="notice hidden" role="status" aria-live="polite"></div>
-    <section id="signedOut" class="card">
-      <h2>Connect a wallet to continue</h2>
-      <p class="muted">Sign a one-time message to identify this wallet. Your private key stays in your wallet provider.</p>
+    <section id="signedOut" class="glass-panel">
+      <h2>Connect your wallet to continue</h2>
+      <p>Sign a one-time message to verify wallet ownership. Your private key stays in your wallet provider; company membership and actions are scoped to the connected address.</p>
       <button onclick="connectWallet()">Connect and sign in</button>
     </section>
     <section id="workspace" class="hidden">
-      <div class="card row">
-        <div><div class="small muted">Connected wallet</div><div id="connectedWallet" class="mono"></div></div>
-        <div><label for="contextSelect">Workspace</label><select id="contextSelect" onchange="selectContext(this.value)"></select></div>
+      <div class="workspace-context glass-panel">
+        <div>
+          <div class="small muted">Connected wallet</div>
+          <div id="connectedWallet" class="identifier-value mono"></div>
+        </div>
+        <div>
+          <label for="contextSelect">Workspace</label>
+          <select id="contextSelect" onchange="selectContext(this.value)"></select>
+        </div>
       </div>
-      <nav id="tabs" class="tabs" aria-label="Workspace"></nav>
-      <div id="content"></div>
+      <div class="workspace-layout">
+        <aside class="sidebar glass-panel">
+          <div class="sidebar-heading">Navigation hub</div>
+          <nav id="tabs" class="tabs" aria-label="Workspace"></nav>
+          <div class="privacy-status">
+            <strong>Shielded pool · inactive</strong>
+            <p>Disabled until the redeployed pool, verifier, and matching proof interfaces are verified.</p>
+          </div>
+        </aside>
+        <section id="content" class="viewport glass-panel"></section>
+      </div>
     </section>
   </main>
-  <footer>
-    Network: chain 448000 · USDT (18 decimals): <code id="usdtAddressDisplay">loading network configuration…</code>.
-    Shielding and unshielding are disabled; no private balance is inferred or displayed.
+  <footer class="site-footer">
+    USDT address: <code id="usdtAddressDisplay">loading network configuration…</code>. Reports show company records and confirmed receipts; no private pool balance is inferred or displayed.
   </footer>
   <script>
     const CHAIN_ID_HEX = '0x6d600';
@@ -231,6 +336,8 @@
       context = null;
       provider = null;
       signer = null;
+      updateWorkspaceSummary();
+      displayWalletBalance(null);
       document.getElementById('networkStatus').textContent = 'Network not checked';
       renderSignedOut();
       if (message) showNotice(message);
@@ -264,13 +371,22 @@
       select._contexts = contexts;
       context = contexts[0];
       activeTab = 'overview';
+      updateWorkspaceSummary();
       await renderWorkspace();
+      refreshWalletBalance();
     }
 
     async function selectContext(index) {
       context = document.getElementById('contextSelect')._contexts[Number(index)];
       activeTab = 'overview';
+      updateWorkspaceSummary();
       await renderWorkspace();
+    }
+
+    function updateWorkspaceSummary() {
+      const roles = { company:'Company workspace', employee:'Employee', supplier:'Supplier', new:'New wallet' };
+      document.getElementById('userRoleBadge').textContent = `Role: ${roles[context?.type] || 'Guest'}`;
+      document.getElementById('orgSerialDisplay').textContent = context?.serial || 'No company identifier linked to this wallet';
     }
 
     const tabsFor = type => ({
@@ -357,6 +473,21 @@
       return token.balanceOf(wallet);
     }
 
+    function displayWalletBalance(balance) {
+      document.getElementById('usdtBalanceDisplay').textContent = balance === null
+        ? 'Unavailable'
+        : `${ethers.formatUnits(balance, 18)} USDT`;
+    }
+
+    async function refreshWalletBalance() {
+      if (!provider || !wallet) return displayWalletBalance(null);
+      try {
+        displayWalletBalance(await walletUsdtBalance());
+      } catch {
+        displayWalletBalance(null);
+      }
+    }
+
     async function renderCompany() {
       const serial = context.serial;
       const org = await api(`/api/org/${encodeURIComponent(serial)}`);
@@ -368,6 +499,7 @@
         activeTab === 'overview' ? walletUsdtBalance().catch(() => null) : Promise.resolve(null),
         api(`/api/org/${encodeURIComponent(serial)}/join-requests`)
       ]);
+      if (activeTab === 'overview') displayWalletBalance(balance);
       const content = document.getElementById('content');
       if (activeTab === 'overview') {
         content.innerHTML = `
@@ -842,6 +974,7 @@
         VERIFIER_ADDRESS = ethers.getAddress(health.verifier);
         document.getElementById('usdtAddressDisplay').textContent = `${USDT_ADDRESS} · ${health.decimals} decimals`;
         document.getElementById('networkStatus').textContent = `Chain ${health.chainId} · USDT ${health.decimals}d`;
+        if (provider && wallet) refreshWalletBalance();
       } catch (error) {
         document.getElementById('networkStatus').textContent = 'Network unavailable';
         showNotice(`Chain configuration unavailable: ${error.message} Wallet sign-in is still available; on-chain actions need a working RPC.`, 'error');

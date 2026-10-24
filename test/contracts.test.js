@@ -46,6 +46,33 @@ test('dashboard inline JavaScript parses', () => {
   const connectWallet = scripts[0].match(/async function connectWallet\(\) \{([\s\S]*?)\n    \}/);
   assert.ok(connectWallet);
   assert.doesNotMatch(connectWallet[1], /networkReady|USDT_ADDRESS/);
-  assert.match(scripts[0], /\n    function installWalletListeners\(\)/);
+  assert.match(connectWallet[1], /injectedProvider = getEvmProvider\(\)/);
+  assert.match(connectWallet[1], /new ethers\.BrowserProvider\(injectedProvider\)/);
+  assert.doesNotMatch(scripts[0], /window\.ethereum\.request/);
+  assert.match(scripts[0], /\n    function installWalletListeners\(evmProvider\)/);
+  assert.match(scripts[0], /function getEvmProvider\(\)[\s\S]*ethereum\.providers\.find\(item => item\.isMetaMask\)/);
   assert.match(scripts[0], /Chain configuration unavailable:.*Wallet sign-in is still available/s);
+});
+
+test('wallet selection prefers MetaMask when multiple injected providers exist', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'app.html'), 'utf8');
+  const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
+    .map(match => match[1])
+    .find(content => content.includes('function getEvmProvider'));
+  const getProvider = script.match(/function getEvmProvider\(\) \{[\s\S]*?\n    \}/)[0];
+  const metamask = { isMetaMask: true };
+  const otherWallet = { isMetaMask: false };
+  const getSelectedProvider = new (require('node:vm').Script)(
+    `${getProvider}\ngetEvmProvider()`
+  );
+  const selected = getSelectedProvider.runInNewContext({
+    window: { ethereum: { providers: [otherWallet, metamask] } }
+  });
+  assert.equal(selected, metamask);
+
+  const legacyProvider = {};
+  const legacySelected = getSelectedProvider.runInNewContext({
+    window: { ethereum: legacyProvider }
+  });
+  assert.equal(legacySelected, legacyProvider);
 });

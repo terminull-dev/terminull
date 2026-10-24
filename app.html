@@ -180,6 +180,7 @@
       'event Transfer(address indexed from,address indexed to,uint256 value)'
     ];
     let provider;
+    let injectedProvider;
     let signer;
     let wallet = '';
     let authToken = sessionStorage.getItem('terminull_session');
@@ -188,6 +189,7 @@
     let activeTab = 'overview';
     let contracts = null;
     let walletListenersInstalled = false;
+    let walletConnectionPending = false;
 
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
@@ -261,14 +263,23 @@
 
     function json(body) { return JSON.stringify(body); }
 
-    async function ensureNetwork() {
-      const chainId = await window.ethereum.request({ method:'eth_chainId' });
+    function getEvmProvider() {
+      const ethereum = window.ethereum;
+      if (!ethereum) return null;
+      if (Array.isArray(ethereum.providers) && ethereum.providers.length) {
+        return ethereum.providers.find(item => item.isMetaMask) || ethereum.providers[0];
+      }
+      return ethereum;
+    }
+
+    async function ensureNetwork(evmProvider) {
+      const chainId = await evmProvider.request({ method:'eth_chainId' });
       if (chainId.toLowerCase() !== CHAIN_ID_HEX) {
         try {
-          await window.ethereum.request({ method:'wallet_switchEthereumChain', params:[{ chainId:CHAIN_ID_HEX }] });
+          await evmProvider.request({ method:'wallet_switchEthereumChain', params:[{ chainId:CHAIN_ID_HEX }] });
         } catch (error) {
           if (error.code !== 4902) throw error;
-          await window.ethereum.request({
+          await evmProvider.request({
             method:'wallet_addEthereumChain',
             params:[{
               chainId:CHAIN_ID_HEX,
@@ -279,17 +290,26 @@
           });
         }
       }
-      const finalId = await window.ethereum.request({ method:'eth_chainId' });
+      const finalId = await evmProvider.request({ method:'eth_chainId' });
       if (finalId.toLowerCase() !== CHAIN_ID_HEX) throw new Error('Switch the wallet to chain 448000 to continue.');
     }
 
     async function connectWallet() {
+      if (walletConnectionPending) return;
+      walletConnectionPending = true;
+      const connectButtons = [
+        document.getElementById('walletButton'),
+        ...document.querySelectorAll('#signedOut button')
+      ].filter(Boolean);
+      connectButtons.forEach(button => { button.disabled = true; });
       clearNotice();
       try {
-        if (!window.ethereum) throw new Error('No injected EVM wallet was found. Install or enable a wallet such as MetaMask.');
-        await window.ethereum.request({ method:'eth_requestAccounts' });
-        await ensureNetwork();
-        provider = new ethers.BrowserProvider(window.ethereum);
+        injectedProvider = getEvmProvider();
+        if (!injectedProvider) throw new Error('No injected EVM wallet was found. Open this page in the MetaMask app browser or enable the MetaMask extension.');
+        const accounts = await injectedProvider.request({ method:'eth_requestAccounts' });
+        if (!Array.isArray(accounts) || accounts.length === 0) throw new Error('MetaMask did not return an account. Unlock it and approve the connection.');
+        await ensureNetwork(injectedProvider);
+        provider = new ethers.BrowserProvider(injectedProvider);
         signer = await provider.getSigner();
         wallet = ethers.getAddress(await signer.getAddress());
         document.getElementById('networkStatus').textContent = 'Connected · chain 448000';
@@ -315,16 +335,19 @@
         authToken = verified.token;
         sessionStorage.setItem('terminull_session', authToken);
         await loadSession();
-        installWalletListeners();
+        installWalletListeners(injectedProvider);
       } catch (error) {
         showNotice(error.message || 'Wallet connection failed.', 'error');
+      } finally {
+        walletConnectionPending = false;
+        connectButtons.forEach(button => { button.disabled = false; });
       }
     }
 
-    function installWalletListeners() {
-      if (walletListenersInstalled || !window.ethereum?.on) return;
-      window.ethereum.on('accountsChanged', () => signOut('Wallet account changed. Sign in again.'));
-      window.ethereum.on('chainChanged', () => signOut('Network changed. Reconnect on chain 448000.'));
+    function installWalletListeners(evmProvider) {
+      if (walletListenersInstalled || !evmProvider?.on) return;
+      evmProvider.on('accountsChanged', () => signOut('Wallet account changed. Sign in again.'));
+      evmProvider.on('chainChanged', () => signOut('Network changed. Reconnect on chain 448000.'));
       walletListenersInstalled = true;
     }
 
@@ -335,6 +358,7 @@
       session = null;
       context = null;
       provider = null;
+      injectedProvider = null;
       signer = null;
       updateWorkspaceSummary();
       displayWalletBalance(null);
@@ -346,7 +370,9 @@
     function renderSignedOut() {
       document.getElementById('signedOut').classList.remove('hidden');
       document.getElementById('workspace').classList.add('hidden');
-      document.getElementById('walletButton').textContent = 'Connect wallet';
+      const walletButton = document.getElementById('walletButton');
+      walletButton.textContent = 'Connect wallet';
+      walletButton.onclick = connectWallet;
     }
 
     async function loadSession() {
@@ -983,16 +1009,18 @@
 
     window.addEventListener('DOMContentLoaded', async () => {
       loadNetworkConfig();
-      if (authToken && window.ethereum) {
+      const evmProvider = getEvmProvider();
+      if (authToken && evmProvider) {
         try {
-          const accounts = await window.ethereum.request({ method:'eth_accounts' });
+          injectedProvider = evmProvider;
+          const accounts = await evmProvider.request({ method:'eth_accounts' });
           if (accounts.length) {
-            await ensureNetwork();
-            provider = new ethers.BrowserProvider(window.ethereum);
+            await ensureNetwork(evmProvider);
+            provider = new ethers.BrowserProvider(evmProvider);
             signer = await provider.getSigner();
             wallet = ethers.getAddress(accounts[0]);
             await loadSession();
-            installWalletListeners();
+            installWalletListeners(evmProvider);
           } else renderSignedOut();
         } catch (error) { signOut(`Could not restore wallet session: ${error.message || 'sign in again.'}`); }
       } else renderSignedOut();

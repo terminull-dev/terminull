@@ -232,6 +232,32 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
   assert.equal((await request(ownerAuth, `/api/org/${serial}/suppliers`)).data.length, 2);
   assert.equal((await request(ownerAuth, `/api/org/${serial}/treasury`)).data.dao, null);
   assert.equal((await request(ownerAuth, `/api/org/${serial}/escrow`)).data.escrow, null);
+  const initialSettings = await request(ownerAuth, `/api/org/${serial}/settings`);
+  assert.equal(initialSettings.response.status, 200);
+  assert.deepEqual(initialSettings.data.settings, {
+    employee_payment_privacy_level:'PUBLIC',
+    supplier_payment_privacy_level:'PUBLIC',
+    dao_transaction_privacy_level:'PUBLIC',
+    updated_at:null
+  });
+  const invalidSettings = await request(ownerAuth, `/api/org/${serial}/settings`, 'PUT', {
+    employee_payment_privacy_level:'SECRET',
+    supplier_payment_privacy_level:'PUBLIC',
+    dao_transaction_privacy_level:'PUBLIC'
+  });
+  assert.equal(invalidSettings.response.status, 400);
+  const savedSettings = await request(ownerAuth, `/api/org/${serial}/settings`, 'PUT', {
+    employee_payment_privacy_level:'ZK_PRIVATE',
+    supplier_payment_privacy_level:'SHIELDED',
+    dao_transaction_privacy_level:'PUBLIC'
+  });
+  assert.equal(savedSettings.response.status, 200);
+  assert.deepEqual({
+    employee:savedSettings.data.settings.employee_payment_privacy_level,
+    supplier:savedSettings.data.settings.supplier_payment_privacy_level,
+    dao:savedSettings.data.settings.dao_transaction_privacy_level
+  }, { employee:'ZK_PRIVATE', supplier:'SHIELDED', dao:'PUBLIC' });
+  assert.equal((await request(ownerAuth, `/api/org/${serial}/settings`)).data.settings.supplier_payment_privacy_level, 'SHIELDED');
   const contractsResponse = await fetch(`${base}/api/contracts`, { headers:ownerAuth.headers });
   assert.equal(contractsResponse.status, 200);
   const contracts = await contractsResponse.json();
@@ -242,9 +268,15 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
   assert.equal((await request(employeeAuth, `/api/org/${serial}/employees`)).response.status, 200);
   assert.equal((await request(employeeAuth, `/api/org/${serial}/invoices`)).response.status, 403);
   assert.equal((await request(employeeAuth, `/api/org/${serial}/report`)).response.status, 403);
+  assert.equal((await request(employeeAuth, `/api/org/${serial}/settings`)).response.status, 403);
 
   const supplierAuth = await signIn(supplier);
   assert.equal((await request(supplierAuth, `/api/org/${serial}/suppliers`)).data.length, 1);
+  assert.equal((await request(supplierAuth, `/api/org/${serial}/settings`, 'PUT', {
+    employee_payment_privacy_level:'PUBLIC',
+    supplier_payment_privacy_level:'PUBLIC',
+    dao_transaction_privacy_level:'PUBLIC'
+  })).response.status, 403);
   const invoice = await request(supplierAuth, `/api/org/${serial}/invoices`, 'POST', {
     invoiceNumber:'INV-1', amount:'10.50', dueDate:'2030-01-01', description:'Integration test invoice'
   });

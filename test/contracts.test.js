@@ -85,7 +85,7 @@ test('workspace navigation exposes company tools and unlinked-wallet actions', (
   const tabsFor = script.match(/const tabsFor = type => \(\{[\s\S]*?\n    \}\[type\] \|\| \['overview'\]\);/)[0];
   const tabs = new (require('node:vm').Script)(`${tabsFor}\ntabsFor`).runInNewContext();
   assert.deepEqual(Array.from(tabs('company')), [
-    'overview', 'accounts', 'employees', 'suppliers', 'invoices', 'escrow', 'dao', 'reports', 'privacy'
+    'overview', 'accounts', 'employees', 'suppliers', 'invoices', 'escrow', 'dao', 'reports', 'settings', 'privacy'
   ]);
   assert.deepEqual(Array.from(tabs('new')), ['overview', 'company', 'join', 'invoice', 'privacy']);
   assert.match(script, /\['overview','accounts'\]\.includes\(activeTab\) \? walletUsdtBalance\(\)/);
@@ -97,6 +97,21 @@ test('workspace navigation exposes company tools and unlinked-wallet actions', (
   assert.match(script, /provider\.getBalance\(wallet\)/);
   assert.match(script, /token\.balanceOf\(org\.dao_address\)/);
   assert.match(script, /ethers\.formatUnits\(balance, 18\)\} USDT/);
+  assert.match(script, /settings:'Company settings'/);
+  assert.match(script, /async function saveCompanySettings\(\)/);
+  assert.match(script, /Privacy preferences saved\. Current transactions remain public/);
+});
+
+test('company privacy preferences are editable but clearly not enforced', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'app.html'), 'utf8');
+  const settingsRenderer = html.match(/async function renderCompanySettings\(org\) \{[\s\S]*?\n    \}/)[0];
+  assert.match(settingsRenderer, /employee_payment_privacy_level/);
+  assert.match(settingsRenderer, /supplier_payment_privacy_level/);
+  assert.match(settingsRenderer, /dao_transaction_privacy_level/);
+  assert.match(settingsRenderer, /Preferences only — not yet enforced/);
+  assert.match(settingsRenderer, /remain publicly visible on-chain/);
+  assert.match(html, /rgba\(45,212,191/);
+  assert.match(html, /rgba\(56,189,248/);
 });
 
 test('ZK workspace previews shielding and withdrawals with every control disabled', () => {

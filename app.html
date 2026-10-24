@@ -11,7 +11,8 @@
     body { margin:0;min-height:100vh;background:radial-gradient(circle at 50% 0,#25282a 0,#1b1d1f 50%,#141617 100%);background-attachment:fixed; }
     button,input,select,textarea { font:inherit; }
     button { border:1px solid rgba(255,255,255,.14);border-radius:.8rem;padding:.7rem .95rem;color:#f8fafc;background:linear-gradient(110deg,#52616c,#443f52);font-weight:650;cursor:pointer;transition:background .16s ease,border-color .16s ease; }
-    button:hover { background:linear-gradient(110deg,#687681,#514b60);border-color:rgba(255,255,255,.25); }
+    button:hover { background:linear-gradient(110deg,#687681,#514b60);border-color:rgba(255,255,255,.25);box-shadow:0 0 0 1px rgba(110,231,220,.12),0 0 18px rgba(56,189,248,.12); }
+    button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible { outline:2px solid #5eead4;outline-offset:2px; }
     button:disabled { opacity:.45;cursor:not-allowed; }
     input,select,textarea { width:100%;border:1px solid rgba(255,255,255,.14);border-radius:.65rem;background:#17191a;color:#f8fafc;padding:.7rem .8rem; }
     input:focus,select:focus,textarea:focus { outline:2px solid rgba(168,180,190,.5);outline-offset:1px; }
@@ -27,10 +28,10 @@
     .status-pill,.badge { display:inline-flex;align-items:center;gap:.5rem;border:1px solid rgba(148,163,184,.25);border-radius:999px;padding:.35rem .7rem;color:#cbd5e1;background:rgba(15,17,18,.56);font-size:.7rem;white-space:nowrap; }
     .status-pill::before { content:"";width:.45rem;height:.45rem;border-radius:50%;background:#87939e; }
     .page-shell { padding-top:2rem;padding-bottom:2rem; }
-    .glass-panel { position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:1.5rem;background:rgba(29,32,34,.94);box-shadow:0 25px 60px rgba(0,0,0,.4),inset 0 1px 1px rgba(255,255,255,.07); }
+    .glass-panel { position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:1.5rem;background:linear-gradient(145deg,rgba(30,36,40,.97),rgba(23,26,29,.97));box-shadow:0 25px 60px rgba(0,0,0,.4),inset 0 1px 1px rgba(255,255,255,.07); }
     .hero { display:grid;grid-template-columns:minmax(0,1.45fr) minmax(250px,.9fr);gap:2rem;padding:clamp(1.25rem,3vw,2.3rem);margin-bottom:1.5rem; }
-    .hero::before,.hero::after { content:"";position:absolute;width:19rem;height:19rem;border-radius:50%;filter:blur(75px);opacity:.12;pointer-events:none; }
-    .hero::before { top:-12rem;right:-5rem;background:#aab4be; } .hero::after { bottom:-14rem;left:20%;background:#68806f; }
+    .hero::before,.hero::after { content:"";position:absolute;width:19rem;height:19rem;border-radius:50%;filter:blur(75px);opacity:.15;pointer-events:none; }
+    .hero::before { top:-12rem;right:-5rem;background:#38bdf8; } .hero::after { bottom:-14rem;left:20%;background:#34d399; }
     .hero-copy,.hero-stats { position:relative;z-index:1; }
     .hero-eyebrow { display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem; }
     .hero-eyebrow span { border:1px solid rgba(170,180,190,.22);border-radius:999px;padding:.35rem .65rem;color:#cbd5e1;background:rgba(84,96,107,.15);font-size:.62rem;font-weight:750;letter-spacing:.1em;text-transform:uppercase; }
@@ -40,7 +41,10 @@
     .identifier-label { color:#9ca3af;font-size:.63rem;letter-spacing:.1em;text-transform:uppercase; }
     .identifier-value { margin-top:.25rem;color:#d5dce1;font-size:.85rem;font-weight:700;overflow-wrap:anywhere; }
     .hero-stats { display:grid;grid-template-columns:1fr;gap:.75rem;align-content:center; }
-    .stat-card,.card { border:1px solid rgba(255,255,255,.07);border-radius:1rem;background:rgba(42,45,47,.76);box-shadow:0 10px 30px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.04); }
+    .stat-card,.card { border:1px solid rgba(255,255,255,.07);border-radius:1rem;background:linear-gradient(145deg,rgba(42,48,51,.88),rgba(32,35,38,.84));box-shadow:0 10px 30px rgba(0,0,0,.22),inset 0 1px rgba(255,255,255,.04); }
+    .stat-card:nth-child(1) { border-color:rgba(52,211,153,.2);box-shadow:0 10px 30px rgba(0,0,0,.22),0 0 24px rgba(52,211,153,.06),inset 0 1px rgba(255,255,255,.04); }
+    .stat-card:nth-child(2) { border-color:rgba(56,189,248,.2);box-shadow:0 10px 30px rgba(0,0,0,.22),0 0 24px rgba(56,189,248,.06),inset 0 1px rgba(255,255,255,.04); }
+    .stat-card:nth-child(3) { border-color:rgba(167,139,250,.2);box-shadow:0 10px 30px rgba(0,0,0,.22),0 0 24px rgba(167,139,250,.06),inset 0 1px rgba(255,255,255,.04); }
     .stat-card { padding:1rem 1.1rem; }
     .stat-label { color:#9ca3af;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase; }
     .stat-value { display:block;margin-top:.4rem;color:#e4e9ed;font-size:1.1rem;font-weight:750;overflow-wrap:anywhere; }
@@ -56,14 +60,17 @@
     .tabs { display:flex;flex-direction:column;gap:.35rem; }
     .tabs button { width:100%;text-align:left;border-color:transparent;background:transparent;color:#cbd5e1;font-size:.82rem;font-weight:550; }
     .tabs button:hover { background:rgba(255,255,255,.06); }
-    .tabs button[aria-current="page"] { border-color:rgba(170,180,190,.22);background:rgba(84,96,107,.2);color:#fff; }
+    .tabs button[aria-current="page"] { border-color:rgba(94,234,212,.28);background:linear-gradient(100deg,rgba(20,184,166,.14),rgba(56,189,248,.08));color:#fff;box-shadow:inset 2px 0 #5eead4,0 0 18px rgba(45,212,191,.07); }
     .privacy-status { margin-top:1rem;padding:.85rem;border:1px solid rgba(255,255,255,.07);border-radius:.9rem;background:rgba(12,14,15,.4); }
     .privacy-status strong { display:block;margin-bottom:.35rem;color:#cbd5e1;font-size:.72rem; }
     .privacy-status p { margin:0;color:#9ca3af;font-size:.72rem;line-height:1.5; }
     .viewport { min-height:620px;padding:clamp(1rem,2vw,1.75rem); }
     #content { font-size:.85rem; }
     .grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.85rem; }
-    .card { padding:1.1rem;margin:0 0 .9rem; } .card:hover { border-color:rgba(176,185,193,.18); }
+    .card { padding:1.1rem;margin:0 0 .9rem;transition:border-color .18s ease,box-shadow .18s ease; } .card:hover { border-color:rgba(94,234,212,.2);box-shadow:0 10px 30px rgba(0,0,0,.22),0 0 20px rgba(45,212,191,.05),inset 0 1px rgba(255,255,255,.04); }
+    .settings-heading { display:flex;justify-content:space-between;align-items:flex-start;gap:1rem; }
+    .policy-note { border-left:3px solid #5eead4;padding:.8rem 1rem;background:linear-gradient(90deg,rgba(20,184,166,.1),rgba(20,184,166,0));color:#cbd5e1;line-height:1.6; }
+    .policy-card { border-color:rgba(56,189,248,.15); }
     .inactive-panel { opacity:.62; }
     .inactive-panel input:disabled,.inactive-panel select:disabled,.inactive-panel button:disabled { cursor:not-allowed;opacity:.5; }
     .inactive-badge { display:inline-flex;align-items:center;border:1px solid rgba(248,113,113,.28);border-radius:999px;padding:.28rem .58rem;color:#fca5a5;background:rgba(127,29,29,.16);font-size:.65rem;font-weight:750;letter-spacing:.06em;text-transform:uppercase; }
@@ -422,7 +429,7 @@
     }
 
     const tabsFor = type => ({
-      company:['overview','accounts','employees','suppliers','invoices','escrow','dao','reports','privacy'],
+      company:['overview','accounts','employees','suppliers','invoices','escrow','dao','reports','settings','privacy'],
       employee:['overview','activity','privacy'],
       supplier:['overview','invoices','activity','privacy'],
       new:['overview','company','join','invoice','privacy']
@@ -441,7 +448,8 @@
       company:'Create company',
       join:'Join a company',
       invoice:'Invoice a company',
-      privacy:'Privacy / ZK (inactive)'
+      privacy:'Privacy / ZK (inactive)',
+      settings:'Company settings'
     };
 
     async function renderWorkspace() {
@@ -696,7 +704,78 @@
         content.innerHTML = await renderDao(org);
       } else if (activeTab === 'reports') {
         content.innerHTML = `<section class="card"><h2>Company reporting</h2><p class="muted">Exports include employee/supplier records, invoices, and confirmed chain receipts only.</p><div class="actions"><button onclick="exportCompanyReport()">Download full company CSV package</button><button onclick="downloadCsv('employees')">Employee template</button><button onclick="downloadCsv('suppliers')">Supplier template</button><button onclick="downloadCsv('payments')">Payment template</button></div></section><section class="card"><h2>Confirmed transaction history</h2>${renderActivity(activity)}</section>`;
+      } else if (activeTab === 'settings') {
+        await renderCompanySettings(org);
       }
+    }
+
+    const privacyLevelLabels = {
+      PUBLIC:'Public ledger',
+      SHIELDED:'Shielded amount (planned)',
+      ZK_PRIVATE:'ZK private (planned)'
+    };
+
+    async function renderCompanySettings(org) {
+      const { settings } = await api(`/api/org/${encodeURIComponent(org.serial)}/settings`);
+      const values = settings || {
+        employee_payment_privacy_level:'PUBLIC',
+        supplier_payment_privacy_level:'PUBLIC',
+        dao_transaction_privacy_level:'PUBLIC'
+      };
+      document.getElementById('content').innerHTML = `
+        <section class="card">
+          <div class="settings-heading"><div><h2>Company settings</h2>
+            <p class="muted">Set default privacy preferences for company transaction categories.</p></div>
+            <span class="badge">Owner controls</span>
+          </div>
+          <div class="policy-note"><strong>Preferences only — not yet enforced.</strong>
+            <div>USDT transfers and DAO activity remain publicly visible on-chain. Shielded and ZK modes are saved as future policy intent only while the privacy contracts and circuits are inactive.</div>
+          </div>
+        </section>
+        <section class="card policy-card">
+          <h3>Employee payments</h3>
+          <p class="small muted">Default privacy preference when paying employee wallets from the company treasury.</p>
+          <label for="employeePrivacyLevel">Employee payment preference</label>
+          <select id="employeePrivacyLevel">${privacyLevelOptions(values.employee_payment_privacy_level)}</select>
+        </section>
+        <section class="card policy-card">
+          <h3>Supplier payments</h3>
+          <p class="small muted">Default privacy preference for supplier settlements and payments.</p>
+          <label for="supplierPrivacyLevel">Supplier payment preference</label>
+          <select id="supplierPrivacyLevel">${privacyLevelOptions(values.supplier_payment_privacy_level)}</select>
+        </section>
+        <section class="card policy-card">
+          <h3>DAO treasury activity</h3>
+          <p class="small muted">Future privacy preference for DAO proposal execution and treasury transfers.</p>
+          <label for="daoPrivacyLevel">DAO transaction preference</label>
+          <select id="daoPrivacyLevel">${privacyLevelOptions(values.dao_transaction_privacy_level)}</select>
+        </section>
+        <section class="card">
+          <p class="small muted">Public ledger is the only active mode. Selecting a planned mode does not hide values, change transaction routing, or activate any ZK contract.</p>
+          <button type="button" onclick="saveCompanySettings()">Save privacy preferences</button>
+          <span id="settingsSavedAt" class="small muted">${settings?.updated_at ? `Last saved: ${escapeHtml(settings.updated_at)}` : 'No saved preferences yet'}</span>
+        </section>`;
+    }
+
+    function privacyLevelOptions(selected) {
+      return Object.entries(privacyLevelLabels).map(([value, label]) =>
+        `<option value="${value}"${selected === value ? ' selected' : ''}>${label}</option>`
+      ).join('');
+    }
+
+    async function saveCompanySettings() {
+      try {
+        const result = await api(`/api/org/${encodeURIComponent(context.serial)}/settings`, {
+          method:'PUT',
+          body:json({
+            employee_payment_privacy_level:document.getElementById('employeePrivacyLevel').value,
+            supplier_payment_privacy_level:document.getElementById('supplierPrivacyLevel').value,
+            dao_transaction_privacy_level:document.getElementById('daoPrivacyLevel').value
+          })
+        });
+        document.getElementById('settingsSavedAt').textContent = `Last saved: ${result.settings.updated_at}`;
+        showNotice('Privacy preferences saved. Current transactions remain public until privacy features are activated.', 'success');
+      } catch (error) { showNotice(error.message, 'error'); }
     }
 
     function renderEmployees(rows) {

@@ -108,6 +108,12 @@ function requireOrgSerial(value) {
   return requireText(value, 'Company serial', 80);
 }
 
+function requirePrivacyLevel(value, label) {
+  const allowed = ['PUBLIC', 'SHIELDED', 'ZK_PRIVATE'];
+  if (!allowed.includes(value)) fail(400, `${label} must be PUBLIC, SHIELDED, or ZK_PRIVATE.`);
+  return value;
+}
+
 function asyncRoute(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 }
@@ -362,6 +368,49 @@ app.get('/api/org/:serial', asyncRoute(async (req, res) => {
   const roles = await requireRole(req.wallet, serial, ['owner', 'employee', 'supplier']);
   const org = await orgBySerial(serial);
   res.json({ ...org, roles });
+}));
+
+app.get('/api/org/:serial/settings', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  const settings = await get(
+    `SELECT employee_payment_privacy_level, supplier_payment_privacy_level,
+            dao_transaction_privacy_level, updated_at
+     FROM company_settings WHERE org_serial = ?`,
+    [serial]
+  );
+  res.json({ settings: settings || {
+    employee_payment_privacy_level:'PUBLIC',
+    supplier_payment_privacy_level:'PUBLIC',
+    dao_transaction_privacy_level:'PUBLIC',
+    updated_at:null
+  } });
+}));
+
+app.put('/api/org/:serial/settings', asyncRoute(async (req, res) => {
+  const serial = requireOrgSerial(req.params.serial);
+  await requireRole(req.wallet, serial, ['owner']);
+  const employeeLevel = requirePrivacyLevel(req.body.employee_payment_privacy_level, 'Employee payment privacy level');
+  const supplierLevel = requirePrivacyLevel(req.body.supplier_payment_privacy_level, 'Supplier payment privacy level');
+  const daoLevel = requirePrivacyLevel(req.body.dao_transaction_privacy_level, 'DAO transaction privacy level');
+  await run(
+    `INSERT INTO company_settings
+      (org_serial, employee_payment_privacy_level, supplier_payment_privacy_level, dao_transaction_privacy_level, updated_at)
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(org_serial) DO UPDATE SET
+      employee_payment_privacy_level = excluded.employee_payment_privacy_level,
+      supplier_payment_privacy_level = excluded.supplier_payment_privacy_level,
+      dao_transaction_privacy_level = excluded.dao_transaction_privacy_level,
+      updated_at = CURRENT_TIMESTAMP`,
+    [serial, employeeLevel, supplierLevel, daoLevel]
+  );
+  const settings = await get(
+    `SELECT employee_payment_privacy_level, supplier_payment_privacy_level,
+            dao_transaction_privacy_level, updated_at
+     FROM company_settings WHERE org_serial = ?`,
+    [serial]
+  );
+  res.json({ settings });
 }));
 
 app.get('/api/org/:serial/employees', asyncRoute(async (req, res) => {
@@ -824,6 +873,16 @@ async function initializeDatabase() {
       escrow_address TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE(owner_wallet)
+    )`,
+    `CREATE TABLE IF NOT EXISTS company_settings (
+      org_serial TEXT PRIMARY KEY REFERENCES organizations(serial) ON DELETE CASCADE,
+      employee_payment_privacy_level TEXT NOT NULL DEFAULT 'PUBLIC'
+        CHECK (employee_payment_privacy_level IN ('PUBLIC','SHIELDED','ZK_PRIVATE')),
+      supplier_payment_privacy_level TEXT NOT NULL DEFAULT 'PUBLIC'
+        CHECK (supplier_payment_privacy_level IN ('PUBLIC','SHIELDED','ZK_PRIVATE')),
+      dao_transaction_privacy_level TEXT NOT NULL DEFAULT 'PUBLIC'
+        CHECK (dao_transaction_privacy_level IN ('PUBLIC','SHIELDED','ZK_PRIVATE')),
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS employees (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

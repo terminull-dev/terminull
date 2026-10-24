@@ -15,6 +15,7 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
   const rpcTransactions = new Map();
   const rpcReceipts = new Map();
   const rpcCallResults = new Map();
+  const rpcLogs = [];
   const rpc = http.createServer((req, res) => {
     let body = '';
     req.on('data', chunk => { body += chunk; });
@@ -31,6 +32,7 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
         let result = defaults[item.method] ?? null;
         if (item.method === 'eth_getTransactionByHash') result = rpcTransactions.get(hash) || null;
         if (item.method === 'eth_getTransactionReceipt') result = rpcReceipts.get(hash) || null;
+        if (item.method === 'eth_getLogs') result = rpcLogs;
         if (item.method === 'eth_call') {
           result = rpcCallResults.get(item.params?.[0]?.data?.slice(0, 10)) || defaults.eth_call;
         }
@@ -191,6 +193,25 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
     }]);
   }
 
+  function registerRpcTransferLog(hash, from, to, amount) {
+    const tokenAddress = '0x7ec3659A8225ED474D7c662126616aE08545C29b';
+    const transferInterface = new ethers.Interface([
+      'event Transfer(address indexed from,address indexed to,uint256 value)'
+    ]);
+    const encoded = transferInterface.encodeEventLog(transferInterface.getEvent('Transfer'), [from, to, amount]);
+    rpcLogs.push({
+      address:tokenAddress,
+      topics:encoded.topics,
+      data:encoded.data,
+      blockNumber:'0x1',
+      transactionHash:hash,
+      transactionIndex:'0x0',
+      blockHash:`0x${'b'.repeat(64)}`,
+      logIndex:'0x0',
+      removed:false
+    });
+  }
+
   const owner = ethers.Wallet.createRandom();
   const employee = ethers.Wallet.createRandom();
   const supplier = ethers.Wallet.createRandom();
@@ -198,11 +219,37 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
   const registered = await request(ownerAuth, '/api/org/register', 'POST', { name:'Integration Test Org' });
   assert.equal(registered.response.status, 201);
   const serial = registered.data.company.serial;
+  const profileSaved = await request(ownerAuth, `/api/org/${serial}/profile`, 'PUT', {
+    legal_name:'Integration Test Holdings Ltd', registration_number:'REG-448000',
+    registration_jurisdiction:'Paris 8.2', employee_size:'11-50', website:'https://example.test',
+    locations:[{ name:'Paris office', location_type:'OFFICE', city:'Paris', country:'France', email:'ops@example.test' }]
+  });
+  assert.equal(profileSaved.response.status, 200);
+  const profile = await request(ownerAuth, `/api/org/${serial}/profile`);
+  assert.equal(profile.data.profile.legal_name, 'Integration Test Holdings Ltd');
+  assert.equal(profile.data.profile.registration_number, 'REG-448000');
+  assert.equal(profile.data.locations[0].city, 'Paris');
 
   const added = await request(ownerAuth, `/api/org/${serial}/employees`, 'POST', {
-    name:'Test Employee', wallet:employee.address, title:'Engineer', salary:'125.25'
+    name:'Test Employee', wallet:employee.address, title:'Engineer', salary:'125.25',
+    department:'Engineering', work_email:'employee@example.test', work_phone:'+33123456789',
+    employment_type:'FULL_TIME', start_date:'2025-01-15', location:'Paris',
+    reports_to_wallet:owner.address
   });
   assert.equal(added.response.status, 201);
+  assert.equal(added.data.reportsToWallet, owner.address);
+  const employeeList = await request(ownerAuth, `/api/org/${serial}/employees`);
+  assert.equal(employeeList.data[0].department, 'Engineering');
+  assert.equal(employeeList.data[0].work_email, 'employee@example.test');
+  const selfReportingEmployee = await request(ownerAuth, `/api/org/${serial}/employees`, 'POST', {
+    name:'Invalid Reporting Employee', wallet:ethers.Wallet.createRandom().address,
+    title:'Analyst', reports_to_wallet:ethers.Wallet.createRandom().address
+  });
+  assert.equal(selfReportingEmployee.response.status, 400);
+  const organogram = await request(ownerAuth, `/api/org/${serial}/organogram`);
+  assert.equal(organogram.response.status, 200);
+  assert.equal(organogram.data.ownerWallet.toLowerCase(), owner.address.toLowerCase());
+  assert.equal(organogram.data.employees[0].reports_to_wallet.toLowerCase(), owner.address.toLowerCase());
   const invalidImport = await request(ownerAuth, `/api/org/${serial}/bulk/employees`, 'POST', {
     rows:[
       { name:'Would Roll Back', wallet:ethers.Wallet.createRandom().address, title:'Engineer', salary:'1' },
@@ -218,11 +265,24 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
   });
   assert.equal(employeeImport.response.status, 201);
   assert.equal(employeeImport.data.imported, 1);
+  const importedEmployees = await request(ownerAuth, `/api/org/${serial}/employees`);
+  const originalEmployeeRecord = importedEmployees.data.find(row => row.wallet.toLowerCase() === employee.address.toLowerCase());
+  const importedEmployeeRecord = importedEmployees.data.find(row => row.wallet.toLowerCase() === importedEmployee.address.toLowerCase());
+  assert.equal((await request(ownerAuth, `/api/org/${serial}/employees/${originalEmployeeRecord.id}`, 'PUT', {
+    reports_to_wallet:importedEmployee.address
+  })).response.status, 200);
+  assert.equal((await request(ownerAuth, `/api/org/${serial}/employees/${importedEmployeeRecord.id}`, 'PUT', {
+    reports_to_wallet:employee.address
+  })).response.status, 400);
 
   const supplierAdded = await request(ownerAuth, `/api/org/${serial}/suppliers`, 'POST', {
-    name:'Test Supplier', wallet:supplier.address, email:'supplier@example.test'
+    name:'Test Supplier', wallet:supplier.address, email:'supplier@example.test',
+    legal_name:'Test Supplier SAS', registration_number:'SUP-448',
+    tax_id:'FR-123456', website:'https://supplier.example.test',
+    phone:'+33111222333', billing_address:'1 Rue Test, Paris', payment_terms:'NET30'
   });
   assert.equal(supplierAdded.response.status, 201);
+  assert.equal(supplierAdded.data.registrationNumber, 'SUP-448');
   const importedSupplier = ethers.Wallet.createRandom();
   const supplierImport = await request(ownerAuth, `/api/org/${serial}/bulk/suppliers`, 'POST', {
     rows:[{ name:'Imported Supplier', wallet:importedSupplier.address, email:'imported@example.test' }]
@@ -283,6 +343,89 @@ test('wallet authentication scopes company, employee, and supplier APIs', async 
   assert.equal(invoice.response.status, 201);
   assert.equal((await request(supplierAuth, `/api/org/${serial}/activity`)).response.status, 200);
   assert.equal((await request(supplierAuth, `/api/org/${serial}/employees`)).response.status, 403);
+  const nominee = ethers.Wallet.createRandom();
+  const nomination = await request(ownerAuth, `/api/org/${serial}/executives`, 'POST', {
+    name:'Accepted CFO', office:'CFO', wallet:nominee.address,
+    email:'cfo@example.test',
+    permissions:{ profile:'VIEW', employees:'VIEW', projects:'MANAGE', clients:'MANAGE', accounting:'VIEW' }
+  });
+  assert.equal(nomination.response.status, 201);
+  assert.equal(nomination.data.status, 'PENDING');
+  const wrongExecutiveAuth = await signIn(ethers.Wallet.createRandom());
+  assert.equal((await request(wrongExecutiveAuth, `/api/org/${serial}/executives/${nomination.data.id}/accept`, 'POST', {})).response.status, 404);
+  assert.equal((await request(wrongExecutiveAuth, `/api/org/${serial}/projects`)).response.status, 403);
+  const nomineeAuth = await signIn(nominee);
+  assert.equal((await request(nomineeAuth, `/api/org/${serial}/executives/${nomination.data.id}/accept`, 'POST', {})).response.status, 200);
+  assert.equal((await request(nomineeAuth, `/api/org/${serial}/profile`)).response.status, 200);
+  assert.equal((await request(nomineeAuth, `/api/org/${serial}/employees`)).response.status, 200);
+  assert.equal((await request(nomineeAuth, `/api/org/${serial}/suppliers`)).response.status, 403);
+  assert.equal((await request(nomineeAuth, `/api/org/${serial}/employees`, 'POST', {
+    name:'Unauthorized Employee', wallet:ethers.Wallet.createRandom().address, title:'Analyst'
+  })).response.status, 403);
+  assert.equal((await request(nomineeAuth, `/api/org/${serial}/accounting/targets`, 'PUT', {
+    period:'2030-01', target_income:'10', target_outflow:'5'
+  })).response.status, 403);
+  const executiveProject = await request(nomineeAuth, `/api/org/${serial}/projects`, 'POST', {
+    name:'Executive-managed project', budget:'100', target_start:'2030-01-01', target_end:'2030-12-31'
+  });
+  assert.equal(executiveProject.response.status, 201);
+  const executiveTeam = await request(nomineeAuth, `/api/org/${serial}/projects/${executiveProject.data.id}/teams`, 'POST', {
+    name:'Engineering', members:[{ wallet:employee.address, role:'Lead' }]
+  });
+  assert.equal(executiveTeam.response.status, 201);
+  const executiveTask = await request(nomineeAuth, `/api/org/${serial}/projects/${executiveProject.data.id}/tasks`, 'POST', {
+    title:'Build integration', assigned_wallet:employee.address, team_id:executiveTeam.data.id
+  });
+  assert.equal(executiveTask.response.status, 201);
+  assert.equal((await request(nomineeAuth, `/api/org/${serial}/projects`)).data[0].tasks[0].title, 'Build integration');
+  assert.equal((await request(nomineeAuth, `/api/org/${serial}/projects/${executiveProject.data.id}/budget/confirm`, 'POST', {
+    txHash:`0x${'1'.repeat(64)}`
+  })).response.status, 403);
+  const client = await request(nomineeAuth, `/api/org/${serial}/clients`, 'POST', {
+    name:'Acme contact', company_name:'Acme', email:'contact@acme.example.test',
+    estimated_value:'500', status:'LEAD', expected_close:'2030-06-30',
+    next_action:'Schedule discovery'
+  });
+  assert.equal(client.response.status, 201);
+  assert.equal(client.data.status, 'LEAD');
+  assert.equal((await request(nomineeAuth, `/api/org/${serial}/clients`)).data.length, 1);
+  const revoked = await request(ownerAuth, `/api/org/${serial}/executives/${nomination.data.id}/revoke`, 'POST', {});
+  assert.equal(revoked.response.status, 200);
+  assert.equal((await request(nomineeAuth, `/api/org/${serial}/projects`)).response.status, 403);
+  const invalidTarget = await request(ownerAuth, `/api/org/${serial}/accounting/targets`, 'PUT', {
+    period:'2030-13', target_income:'100', target_outflow:'50'
+  });
+  assert.equal(invalidTarget.response.status, 400);
+  const target = await request(ownerAuth, `/api/org/${serial}/accounting/targets`, 'PUT', {
+    period:'2030-01', target_income:'1000', target_outflow:'750'
+  });
+  assert.equal(target.response.status, 200);
+  const accounting = await request(ownerAuth, `/api/org/${serial}/accounting`);
+  assert.equal(accounting.response.status, 200);
+  assert.equal(accounting.data.targets[0].period, '2030-01');
+  assert.deepEqual(accounting.data.actuals, []);
+  registerRpcTransferLog(
+    `0x${'9'.repeat(64)}`, supplier.address, owner.address, ethers.parseUnits('12.5', 18)
+  );
+  const sync = await request(ownerAuth, `/api/org/${serial}/accounting/sync`, 'POST', {
+    start_block:0, max_blocks:1
+  });
+  assert.equal(sync.response.status, 200);
+  assert.equal(sync.data.indexed, 1);
+  assert.equal(sync.data.fromBlock, 0);
+  const indexedAccounting = await request(ownerAuth, `/api/org/${serial}/accounting`);
+  assert.equal(indexedAccounting.data.transfers.length, 1);
+  assert.equal(indexedAccounting.data.actuals[0].income_raw, ethers.parseUnits('12.5', 18).toString());
+  const conflictingSync = await request(ownerAuth, `/api/org/${serial}/accounting/sync`, 'POST', {
+    start_block:0, max_blocks:1
+  });
+  assert.equal(conflictingSync.response.status, 409);
+  const enhancedReport = await request(ownerAuth, `/api/org/${serial}/report`);
+  assert.equal(enhancedReport.response.status, 200);
+  assert.equal(enhancedReport.data.companyProfile.legal_name, 'Integration Test Holdings Ltd');
+  assert.equal(enhancedReport.data.projects[0].name, 'Executive-managed project');
+  assert.equal(enhancedReport.data.clients[0].company_name, 'Acme');
+
   const companyInvoices = await request(ownerAuth, `/api/org/${serial}/invoices`);
   assert.equal(companyInvoices.response.status, 200);
   assert.equal(companyInvoices.data.length, 1);

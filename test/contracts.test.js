@@ -82,10 +82,13 @@ test('workspace navigation exposes company tools and unlinked-wallet actions', (
   const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
     .map(match => match[1])
     .find(content => content.includes('const tabsFor'));
-  const tabsFor = script.match(/const tabsFor = type => \(\{[\s\S]*?\n    \}\[type\] \|\| \['overview'\]\);/)[0];
+  const tabsFor = script.match(/const tabsFor = \(type, org\) => \{[\s\S]*?\n    \};/)[0];
   const tabs = new (require('node:vm').Script)(`${tabsFor}\ntabsFor`).runInNewContext();
-  assert.deepEqual(Array.from(tabs('company')), [
-    'overview', 'accounts', 'employees', 'suppliers', 'invoices', 'escrow', 'dao', 'reports', 'settings', 'privacy'
+  const ownerOrg = { roles:['owner'], permissions:{} };
+  assert.deepEqual(Array.from(tabs('company')), ['overview','privacy']);
+  assert.deepEqual(Array.from(tabs('company', ownerOrg)), [
+    'overview','accounts','profile','employees','organogram','suppliers','invoices','projects','clients','accounting',
+    'escrow','dao','reports','settings','privacy'
   ]);
   assert.deepEqual(Array.from(tabs('new')), ['overview', 'company', 'join', 'invoice', 'privacy']);
   assert.match(script, /\['overview','accounts'\]\.includes\(activeTab\) \? walletUsdtBalance\(\)/);
@@ -100,11 +103,16 @@ test('workspace navigation exposes company tools and unlinked-wallet actions', (
   assert.match(script, /settings:'Company settings'/);
   assert.match(script, /async function saveCompanySettings\(\)/);
   assert.match(script, /Privacy preferences saved\. Current transactions remain public/);
+  assert.match(script, /async function renderOrganogram\(\)/);
+  assert.match(script, /toggleOrgNode/);
+  assert.match(script, /async function renderProjects/);
+  assert.match(script, /async function renderAccounting/);
+  assert.match(script, /async function renderClients/);
 });
 
 test('company privacy preferences are editable but clearly not enforced', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'app.html'), 'utf8');
-  const settingsRenderer = html.match(/async function renderCompanySettings\(org\) \{[\s\S]*?\n    \}/)[0];
+  const settingsRenderer = html.match(/async function renderCompanySettings\(org[^)]*\) \{[\s\S]*?\n    \}/)[0];
   assert.match(settingsRenderer, /employee_payment_privacy_level/);
   assert.match(settingsRenderer, /supplier_payment_privacy_level/);
   assert.match(settingsRenderer, /dao_transaction_privacy_level/);
@@ -119,7 +127,7 @@ test('ZK workspace previews shielding and withdrawals with every control disable
   const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)]
     .map(match => match[1])
     .find(content => content.includes('const tabsFor'));
-  const tabsFor = script.match(/const tabsFor = type => \(\{[\s\S]*?\n    \}\[type\] \|\| \['overview'\]\);/)[0];
+  const tabsFor = script.match(/const tabsFor = \(type, org\) => \{[\s\S]*?\n    \};/)[0];
   const tabs = new (require('node:vm').Script)(`${tabsFor}\ntabsFor`).runInNewContext();
   for (const role of ['company', 'employee', 'supplier', 'new']) {
     assert.ok(Array.from(tabs(role)).includes('privacy'), `${role} workspace should expose the privacy preview`);

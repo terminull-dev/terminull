@@ -209,11 +209,15 @@
       const supplier = document.getElementById('joinRole').value === 'supplier';
       document.getElementById('joinTitleField').classList.toggle('hidden', supplier);
       document.getElementById('joinSalaryField').classList.toggle('hidden', supplier);
-      document.getElementById('joinEmailField').classList.toggle('hidden', !supplier);
+      for (const id of ['joinDepartmentField','joinEmploymentField','joinStartDateField','joinLocationField','joinReportsToField']) {
+        document.getElementById(id).classList.toggle('hidden', supplier);
+      }
+      document.getElementById('joinSupplierFields').classList.toggle('hidden', !supplier);
     }
 
     async function requestMembership() {
       try {
+        const supplier = document.getElementById('joinRole').value === 'supplier';
         await api('/api/join-requests', {
           method:'POST',
           body:json({
@@ -222,10 +226,32 @@
             name:document.getElementById('joinName').value,
             title:document.getElementById('joinTitle').value,
             salary:document.getElementById('joinSalary').value,
-            email:document.getElementById('joinEmail').value
+            email:document.getElementById('joinEmail').value,
+            work_email:supplier ? '' : document.getElementById('joinEmail').value,
+            department:document.getElementById('joinDepartment').value,
+            work_phone:document.getElementById('joinPhone').value,
+            employment_type:document.getElementById('joinEmploymentType').value,
+            start_date:document.getElementById('joinStartDate').value,
+            location:document.getElementById('joinLocation').value,
+            reports_to_wallet:document.getElementById('joinReportsTo').value,
+            legal_name:supplier ? document.getElementById('joinLegalName').value : '',
+            registration_number:supplier ? document.getElementById('joinSupplierRegistration').value : '',
+            tax_id:supplier ? document.getElementById('joinSupplierTaxId').value : '',
+            vat_id:supplier ? document.getElementById('joinSupplierVatId').value : '',
+            website:supplier ? document.getElementById('joinSupplierWebsite').value : '',
+            billing_address:supplier ? document.getElementById('joinSupplierAddress').value : '',
+            payment_terms:supplier ? document.getElementById('joinPaymentTerms').value : ''
           })
         });
         showNotice('Membership request submitted to the company owner.', 'success');
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function acceptExecutiveInvitation(serial, id) {
+      try {
+        await api(`/api/org/${encodeURIComponent(serial)}/executives/${id}/accept`, { method:'POST', body:'{}' });
+        await loadSession();
+        showNotice('Executive access accepted for this wallet.', 'success');
       } catch (error) { showNotice(error.message, 'error'); }
     }
 
@@ -423,17 +449,38 @@
     }
 
     function updateWorkspaceSummary() {
-      const roles = { company:'Company workspace', employee:'Employee', supplier:'Supplier', new:'New wallet' };
+      const roles = { company:'Company workspace / executive', employee:'Employee', supplier:'Supplier', new:'New wallet' };
       document.getElementById('userRoleBadge').textContent = `Role: ${roles[context?.type] || 'Guest'}`;
       document.getElementById('orgSerialDisplay').textContent = context?.serial || 'No company identifier linked to this wallet';
     }
 
-    const tabsFor = type => ({
-      company:['overview','accounts','employees','suppliers','invoices','escrow','dao','reports','settings','privacy'],
-      employee:['overview','activity','privacy'],
+    const tabsFor = (type, org) => {
+      if (type === 'company') {
+        const permissions = org?.permissions || {};
+        const owner = org?.roles?.includes('owner');
+        const canView = scope => owner || ['VIEW','MANAGE'].includes(permissions[scope]);
+        return [
+          'overview',
+          ...(owner ? ['accounts'] : []),
+          ...(canView('profile') ? ['profile'] : []),
+          ...(canView('employees') ? ['employees','organogram'] : []),
+          ...(canView('suppliers') ? ['suppliers'] : []),
+          ...(canView('invoices') ? ['invoices'] : []),
+          ...(canView('projects') ? ['projects'] : []),
+          ...(canView('clients') ? ['clients'] : []),
+          ...(canView('accounting') ? ['accounting'] : []),
+          ...(owner ? ['escrow','dao'] : []),
+          ...(canView('reports') ? ['reports'] : []),
+          ...(canView('settings') ? ['settings'] : []),
+          'privacy'
+        ];
+      }
+      return ({
+      employee:['overview','projects','activity','privacy'],
       supplier:['overview','invoices','activity','privacy'],
       new:['overview','company','join','invoice','privacy']
-    }[type] || ['overview']);
+      }[type] || ['overview']);
+    };
 
     const tabLabels = {
       overview:'Dashboard',
@@ -445,6 +492,11 @@
       dao:'DAO governance',
       reports:'Reporting & audit',
       activity:'Transactions',
+      profile:'Company profile & locations',
+      organogram:'Organogram',
+      projects:'Projects & teams',
+      clients:'Client acquisition',
+      accounting:'On-chain accounting',
       company:'Create company',
       join:'Join a company',
       invoice:'Invoice a company',
@@ -454,17 +506,20 @@
 
     async function renderWorkspace() {
       if (!session || !context) return;
-      const tabs = tabsFor(context.type);
-      if (!tabs.includes(activeTab)) activeTab = tabs[0];
-      document.getElementById('tabs').innerHTML = tabs.map(tab =>
-        `<button type="button" aria-current="${tab === activeTab ? 'page' : 'false'}" onclick="openTab('${tab}')">${tabLabels[tab]}</button>`
-      ).join('');
       const content = document.getElementById('content');
       content.innerHTML = '<div class="card muted">Loading verified account data…</div>';
       try {
+        const org = context.type === 'company'
+          ? await api(`/api/org/${encodeURIComponent(context.serial)}`)
+          : null;
+        const tabs = tabsFor(context.type, org);
+        if (!tabs.includes(activeTab)) activeTab = tabs[0];
+        document.getElementById('tabs').innerHTML = tabs.map(tab =>
+          `<button type="button" aria-current="${tab === activeTab ? 'page' : 'false'}" onclick="openTab('${tab}')">${tabLabels[tab]}</button>`
+        ).join('');
         if (activeTab === 'privacy') return renderPrivacyWorkspace();
         if (context.type === 'new') return renderNewWallet();
-        if (context.type === 'company') return await renderCompany();
+        if (context.type === 'company') return await renderCompany(org);
         if (context.type === 'employee') return await renderEmployee();
         return await renderSupplier();
       } catch (error) {
@@ -534,8 +589,18 @@
       const content = document.getElementById('content');
       if (activeTab === 'company') {
         content.innerHTML = `<section class="card"><h2>Create a company workspace</h2>
-          <p class="muted">The connected wallet becomes the company owner. Your company serial will be created for supplier invoices and membership requests.</p>
+          <p class="muted">The connected wallet becomes the company owner. Registration, tax, contact, and office fields are optional and can be completed later.</p>
           <label for="newCompanyName">Company name</label><input id="newCompanyName" maxlength="200" autocomplete="organization">
+          <div class="form-grid">
+            <div><label>Legal registered name</label><input id="companyLegalName"></div><div><label>Trading name</label><input id="companyTradingName"></div>
+            <div><label>Registration number</label><input id="companyRegistrationNumber"></div><div><label>Registration jurisdiction</label><input id="companyJurisdiction"></div>
+            <div><label>Tax identifier</label><input id="companyTaxId"></div><div><label>VAT identifier</label><input id="companyVatId"></div>
+            <div><label>Employee size</label><input id="companyEmployeeSize" placeholder="e.g. 1–10"></div><div><label>Industry</label><input id="companyIndustry"></div>
+            <div><label>Website</label><input id="companyWebsite" type="url"></div><div><label>Company email</label><input id="companyEmail" type="email"></div>
+            <div><label>Company telephone</label><input id="companyPhone" type="tel"></div>
+          </div>
+          <label>Registered address</label><textarea id="companyRegisteredAddress" rows="2"></textarea>
+          <label>Mailing address</label><textarea id="companyMailingAddress" rows="2"></textarea>
           <button onclick="registerCompany()">Create company workspace</button></section>`;
       } else if (activeTab === 'join') {
         content.innerHTML = `<section class="card"><h2>Join an existing company</h2>
@@ -544,13 +609,32 @@
             <div><label for="joinRole">Role requested</label><select id="joinRole" onchange="toggleJoinFields()"><option value="employee">Employee</option><option value="supplier">Supplier</option></select></div>
             <div><label for="joinName">Name</label><input id="joinName" autocomplete="name"></div>
             <div id="joinTitleField"><label for="joinTitle">Job title</label><input id="joinTitle"></div>
-            <div id="joinSalaryField"><label for="joinSalary">Monthly USDT salary</label><input id="joinSalary" inputmode="decimal"></div>
-            <div id="joinEmailField" class="hidden"><label for="joinEmail">Supplier contact email (optional)</label><input id="joinEmail" type="email"></div>
+            <div id="joinSalaryField"><label for="joinSalary">Monthly USDT salary (optional)</label><input id="joinSalary" inputmode="decimal"></div>
+            <div id="joinDepartmentField"><label for="joinDepartment">Department (optional)</label><input id="joinDepartment"></div>
+            <div id="joinEmailField"><label for="joinEmail">Contact / work email (optional)</label><input id="joinEmail" type="email"></div>
+            <div id="joinPhoneField"><label for="joinPhone">Contact / work phone (optional)</label><input id="joinPhone" type="tel"></div>
+            <div id="joinEmploymentField"><label for="joinEmploymentType">Employment type (optional)</label><input id="joinEmploymentType"></div>
+            <div id="joinStartDateField"><label for="joinStartDate">Start date (optional)</label><input id="joinStartDate" type="date"></div>
+            <div id="joinLocationField"><label for="joinLocation">Office / location (optional)</label><input id="joinLocation"></div>
+            <div id="joinReportsToField"><label for="joinReportsTo">Reports-to wallet (optional)</label><input id="joinReportsTo" placeholder="Owner, executive, or employee wallet"></div>
+            <div id="joinSupplierFields" class="hidden">
+              <div><label for="joinLegalName">Legal supplier name (optional)</label><input id="joinLegalName"></div>
+              <div><label for="joinSupplierRegistration">Registration number (optional)</label><input id="joinSupplierRegistration"></div>
+              <div><label for="joinSupplierTaxId">Tax identifier (optional)</label><input id="joinSupplierTaxId"></div>
+              <div><label for="joinSupplierVatId">VAT identifier (optional)</label><input id="joinSupplierVatId"></div>
+              <div><label for="joinSupplierWebsite">Website (optional)</label><input id="joinSupplierWebsite" type="url"></div>
+              <div><label for="joinSupplierAddress">Billing address (optional)</label><input id="joinSupplierAddress"></div>
+              <div><label for="joinPaymentTerms">Payment terms (optional)</label><input id="joinPaymentTerms"></div>
+            </div>
           </div><button onclick="requestMembership()">Submit membership request</button></section>`;
       } else if (activeTab === 'invoice') {
         content.innerHTML = invoiceFormMarkup('');
       } else {
-        content.innerHTML = `<section class="card"><h2>Welcome to your treasury workspace</h2>
+        const invitations = session.executiveInvitations || [];
+        content.innerHTML = `${invitations.length ? `<section class="card"><h2>Executive access invitations</h2>
+          ${invitations.map(invite => `<div class="card"><strong>${escapeHtml(invite.office)} · ${escapeHtml(invite.company_name)}</strong><p>${escapeHtml(invite.name)} has nominated wallet <code>${escapeHtml(wallet)}</code> for shared company access.</p>
+            <button onclick="acceptExecutiveInvitation('${escapeHtml(invite.serial)}',${invite.id})">Accept wallet-bound access</button></div>`).join('')}</section>` : ''}
+          <section class="card"><h2>Welcome to your treasury workspace</h2>
           <p class="muted">Wallet connected: <code>${escapeHtml(wallet)}</code>. Choose a destination in the sidebar to create a company, request access to one, or invoice a company directly by its serial.</p>
           <div class="actions"><button onclick="openTab('company')">Create a company</button><button onclick="openTab('join')">Request company access</button><button onclick="openTab('invoice')">Invoice a company</button></div>
           <section class="card"><h3>Privacy features</h3><p class="muted">Shielding and unshielding are inactive while the pool and verifier interfaces are being redeployed.</p></section>
@@ -571,7 +655,22 @@
 
     async function registerCompany() {
       try {
-        await api('/api/org/register', { method:'POST', body:json({ name:document.getElementById('newCompanyName').value }) });
+        await api('/api/org/register', { method:'POST', body:json({
+          name:document.getElementById('newCompanyName').value,
+          legal_name:document.getElementById('companyLegalName').value,
+          trading_name:document.getElementById('companyTradingName').value,
+          registration_number:document.getElementById('companyRegistrationNumber').value,
+          registration_jurisdiction:document.getElementById('companyJurisdiction').value,
+          tax_id:document.getElementById('companyTaxId').value,
+          vat_id:document.getElementById('companyVatId').value,
+          employee_size:document.getElementById('companyEmployeeSize').value,
+          industry:document.getElementById('companyIndustry').value,
+          website:document.getElementById('companyWebsite').value,
+          email:document.getElementById('companyEmail').value,
+          phone:document.getElementById('companyPhone').value,
+          registered_address:document.getElementById('companyRegisteredAddress').value,
+          mailing_address:document.getElementById('companyMailingAddress').value
+        }) });
         await loadSession();
         showNotice('Company workspace created for the connected wallet.', 'success');
       } catch (error) { showNotice(error.message, 'error'); }
@@ -640,21 +739,30 @@
       }
     }
 
-    async function renderCompany() {
+    async function renderCompany(org) {
       const serial = context.serial;
-      const org = await api(`/api/org/${encodeURIComponent(serial)}`);
+      const owner = org.roles.includes('owner');
+      const canView = scope => owner || ['VIEW','MANAGE'].includes(org.permissions?.[scope]);
+      const canManage = scope => owner || org.permissions?.[scope] === 'MANAGE';
       const [employees, suppliers, invoices, activity, balance, joinRequests] = await Promise.all([
-        api(`/api/org/${encodeURIComponent(serial)}/employees`),
-        api(`/api/org/${encodeURIComponent(serial)}/suppliers`),
-        api(`/api/org/${encodeURIComponent(serial)}/invoices`),
-        api(`/api/org/${encodeURIComponent(serial)}/activity`),
-        ['overview','accounts'].includes(activeTab) ? walletUsdtBalance().catch(() => null) : Promise.resolve(null),
-        api(`/api/org/${encodeURIComponent(serial)}/join-requests`)
+        canView('employees') ? api(`/api/org/${encodeURIComponent(serial)}/employees`) : Promise.resolve([]),
+        canView('suppliers') ? api(`/api/org/${encodeURIComponent(serial)}/suppliers`) : Promise.resolve([]),
+        canView('invoices') ? api(`/api/org/${encodeURIComponent(serial)}/invoices`) : Promise.resolve([]),
+        canView('reports') ? api(`/api/org/${encodeURIComponent(serial)}/activity`) : Promise.resolve([]),
+        owner && ['overview','accounts'].includes(activeTab) ? walletUsdtBalance().catch(() => null) : Promise.resolve(null),
+        canManage('employees') || canManage('suppliers')
+          ? api(`/api/org/${encodeURIComponent(serial)}/join-requests`)
+          : Promise.resolve([])
       ]);
       if (activeTab === 'overview') displayWalletBalance(balance);
       const content = document.getElementById('content');
       if (activeTab === 'overview') {
+        const invitationMarkup = (session.executiveInvitations || []).filter(invite => invite.serial === serial).map(invite =>
+          `<section class="card"><h3>Executive access invitation</h3><p>${escapeHtml(invite.office)} · ${escapeHtml(invite.company_name)} · nominated wallet <code>${escapeHtml(wallet)}</code></p>
+            <button onclick="acceptExecutiveInvitation('${escapeHtml(invite.serial)}',${invite.id})">Accept wallet-bound access</button></section>`
+        ).join('');
         content.innerHTML = `
+          ${invitationMarkup}
           <div class="grid">
             <article class="card"><div class="small muted">USDT in connected wallet</div><h2>${balance === null ? 'Unavailable' : `${escapeHtml(ethers.formatUnits(balance,18))} USDT`}</h2><p class="small muted">${balance === null ? 'The chain RPC or token contract is unavailable.' : 'On-chain wallet balance; not a company ledger balance.'}</p></article>
             <article class="card"><div class="small muted">Company serial</div><h2 class="mono">${escapeHtml(org.serial)}</h2><p>${escapeHtml(org.name)}</p></article>
@@ -672,29 +780,36 @@
           <button onclick="sendUsdtPayment()">Send USDT payment</button></section>
           <section class="card"><h2>Confirmed transactions</h2>${renderActivity(activity)}</section>`;
       } else if (activeTab === 'employees') {
-        content.innerHTML = `
+        content.innerHTML = `${canManage('employees') ? `
           <section class="card"><h2>Add employee</h2>
-            <div class="form-grid"><div><label>Name</label><input id="employeeName"></div><div><label>Wallet</label><input id="employeeWallet" placeholder="0x…"></div><div><label>Title</label><input id="employeeTitle"></div><div><label>Monthly USDT salary</label><input id="employeeSalary" inputmode="decimal" placeholder="0.00"></div></div>
+            <div class="form-grid"><div><label>Name</label><input id="employeeName"></div><div><label>Wallet</label><input id="employeeWallet" placeholder="0x…"></div><div><label>Title</label><input id="employeeTitle"></div><div><label>Monthly USDT salary (optional)</label><input id="employeeSalary" inputmode="decimal" placeholder="0.00"></div>
+              <div><label>Department</label><input id="employeeDepartment"></div><div><label>Work email</label><input id="employeeEmail" type="email"></div>
+              <div><label>Work phone</label><input id="employeePhone" type="tel"></div><div><label>Employment type</label><input id="employeeType" placeholder="Full-time, part-time, contractor…"></div>
+              <div><label>Start date</label><input id="employeeStartDate" type="date"></div><div><label>Office / location</label><input id="employeeLocation"></div>
+              <div><label>Reports to wallet (optional)</label><input id="employeeReportsTo" placeholder="Owner, executive, or employee wallet"></div></div>
             <button onclick="addEmployee()">Add employee</button>
           </section>
-          <section class="card"><h2>Bulk employee import</h2><p class="small muted">CSV columns: <code>name,wallet,title,salary</code>. Replace every placeholder with real data. All rows validate before any are saved.</p>
+          <section class="card"><h2>Bulk employee import</h2><p class="small muted">CSV columns: <code>name,wallet,title,salary,department,work_email,work_phone,employment_type,start_date,location,reports_to_wallet</code>. Optional fields can be left blank. All rows validate before any are saved.</p>
             <div class="actions"><button onclick="downloadCsv('employees')">Download employee CSV template</button><input id="employeeCsv" type="file" accept=".csv,text/csv"><button onclick="importCsv('employees')">Import employees</button></div>
           </section>
           <section class="card"><h2>Bulk payment manifest</h2><p class="small muted">CSV columns: <code>wallet,amount,memo</code>. Each payment is a separate confirmed USDT transfer from the connected company wallet.</p>
             <div class="actions"><button onclick="downloadCsv('payments')">Download payment CSV template</button><input id="paymentCsv" type="file" accept=".csv,text/csv"><button onclick="executeMassPayments()">Pay manifest</button></div>
           </section>
-          <section class="card"><h2>Pending membership requests</h2>${renderJoinRequests(joinRequests)}</section>
-          <section class="card"><h2>Employee roster</h2>${renderEmployees(employees)}</section>`;
+          ${canManage('employees') ? `<section class="card"><h2>Pending employee requests</h2>${renderJoinRequests(joinRequests.filter(item => item.requested_role === 'employee'))}</section>` : ''}` : ''}
+          <section class="card"><h2>Employee roster</h2>${renderEmployees(employees, canManage('employees'))}</section>`;
       } else if (activeTab === 'suppliers') {
-        content.innerHTML = `
-          <section class="card"><h2>Add supplier</h2><div class="form-grid"><div><label>Supplier name</label><input id="supplierName"></div><div><label>Wallet</label><input id="supplierWallet" placeholder="0x…"></div><div><label>Contact email (optional)</label><input id="supplierEmail" type="email"></div></div><button onclick="addSupplier()">Add supplier</button></section>
-          <section class="card"><h2>Bulk supplier import</h2><p class="small muted">CSV columns: <code>name,wallet,email</code>. Replace every placeholder with real data; no wallet is generated for a supplier.</p><div class="actions"><button onclick="downloadCsv('suppliers')">Download supplier CSV template</button><input id="supplierCsv" type="file" accept=".csv,text/csv"><button onclick="importCsv('suppliers')">Import suppliers</button></div></section>
-          <section class="card"><h2>Pending membership requests</h2>${renderJoinRequests(joinRequests)}</section>
-          <section class="card"><h2>Supplier directory</h2>${renderSuppliers(suppliers)}</section>`;
+        content.innerHTML = `${canManage('suppliers') ? `
+          <section class="card"><h2>Add supplier</h2><div class="form-grid"><div><label>Supplier name</label><input id="supplierName"></div><div><label>Legal name</label><input id="supplierLegalName"></div><div><label>Wallet</label><input id="supplierWallet" placeholder="0x…"></div>
+            <div><label>Registration number</label><input id="supplierRegistration"></div><div><label>Tax identifier</label><input id="supplierTaxId"></div><div><label>VAT identifier</label><input id="supplierVatId"></div>
+            <div><label>Contact email</label><input id="supplierEmail" type="email"></div><div><label>Telephone</label><input id="supplierPhone" type="tel"></div><div><label>Website</label><input id="supplierWebsite" type="url"></div>
+            <div><label>Billing address</label><input id="supplierBillingAddress"></div><div><label>Payment terms</label><input id="supplierPaymentTerms" placeholder="e.g. Net 30"></div></div><button onclick="addSupplier()">Add supplier</button></section>
+          <section class="card"><h2>Bulk supplier import</h2><p class="small muted">Optional corporate registration, tax, web, phone, billing, and payment-term details are supported in the CSV.</p><div class="actions"><button onclick="downloadCsv('suppliers')">Download supplier CSV template</button><input id="supplierCsv" type="file" accept=".csv,text/csv"><button onclick="importCsv('suppliers')">Import suppliers</button></div></section>
+          <section class="card"><h2>Pending supplier requests</h2>${renderJoinRequests(joinRequests.filter(item => item.requested_role === 'supplier'))}</section>` : ''}
+          <section class="card"><h2>Supplier directory</h2>${renderSuppliers(suppliers, canManage('suppliers'))}</section>`;
       } else if (activeTab === 'invoices') {
         content.innerHTML = `<section class="card"><h2>Supplier invoices · ${escapeHtml(org.serial)}</h2><p class="small muted">Invoices are routed to this company serial. USDT is held by the company escrow contract after funding.</p>
-          ${org.escrow_address ? '<p>Escrow contract: <code>'+escapeHtml(org.escrow_address)+'</code></p>' : '<button onclick="deployEscrow()">Deploy company escrow</button>'}
-          ${renderInvoices(invoices, true, Boolean(org.escrow_address))}</section>`;
+        ${owner ? (org.escrow_address ? '<p>Escrow contract: <code>'+escapeHtml(org.escrow_address)+'</code></p>' : '<button onclick="deployEscrow()">Deploy company escrow</button>') : ''}
+        ${renderInvoices(invoices, owner, owner && Boolean(org.escrow_address))}</section>`;
       } else if (activeTab === 'escrow') {
         content.innerHTML = `<section class="card"><h2>Company escrow vault</h2>
           <p class="muted">Fund an approved supplier invoice into the company escrow contract, then release payment or refund funds according to the escrow contract rules.</p>
@@ -705,7 +820,18 @@
       } else if (activeTab === 'reports') {
         content.innerHTML = `<section class="card"><h2>Company reporting</h2><p class="muted">Exports include employee/supplier records, invoices, and confirmed chain receipts only.</p><div class="actions"><button onclick="exportCompanyReport()">Download full company CSV package</button><button onclick="downloadCsv('employees')">Employee template</button><button onclick="downloadCsv('suppliers')">Supplier template</button><button onclick="downloadCsv('payments')">Payment template</button></div></section><section class="card"><h2>Confirmed transaction history</h2>${renderActivity(activity)}</section>`;
       } else if (activeTab === 'settings') {
-        await renderCompanySettings(org);
+        await renderCompanySettings(org, canManage('settings'));
+        if (owner) await renderExecutiveAccess(org);
+      } else if (activeTab === 'profile') {
+        await renderCompanyProfile(org, canManage('profile'));
+      } else if (activeTab === 'organogram') {
+        await renderOrganogram();
+      } else if (activeTab === 'projects') {
+        await renderProjects(org, canManage('projects'));
+      } else if (activeTab === 'clients') {
+        await renderClients(canManage('clients'));
+      } else if (activeTab === 'accounting') {
+        await renderAccounting(canManage('accounting'));
       }
     }
 
@@ -715,7 +841,7 @@
       ZK_PRIVATE:'ZK private (planned)'
     };
 
-    async function renderCompanySettings(org) {
+    async function renderCompanySettings(org, canManage = true) {
       const { settings } = await api(`/api/org/${encodeURIComponent(org.serial)}/settings`);
       const values = settings || {
         employee_payment_privacy_level:'PUBLIC',
@@ -736,23 +862,23 @@
           <h3>Employee payments</h3>
           <p class="small muted">Default privacy preference when paying employee wallets from the company treasury.</p>
           <label for="employeePrivacyLevel">Employee payment preference</label>
-          <select id="employeePrivacyLevel">${privacyLevelOptions(values.employee_payment_privacy_level)}</select>
+          <select id="employeePrivacyLevel" ${canManage ? '' : 'disabled'}>${privacyLevelOptions(values.employee_payment_privacy_level)}</select>
         </section>
         <section class="card policy-card">
           <h3>Supplier payments</h3>
           <p class="small muted">Default privacy preference for supplier settlements and payments.</p>
           <label for="supplierPrivacyLevel">Supplier payment preference</label>
-          <select id="supplierPrivacyLevel">${privacyLevelOptions(values.supplier_payment_privacy_level)}</select>
+          <select id="supplierPrivacyLevel" ${canManage ? '' : 'disabled'}>${privacyLevelOptions(values.supplier_payment_privacy_level)}</select>
         </section>
         <section class="card policy-card">
           <h3>DAO treasury activity</h3>
           <p class="small muted">Future privacy preference for DAO proposal execution and treasury transfers.</p>
           <label for="daoPrivacyLevel">DAO transaction preference</label>
-          <select id="daoPrivacyLevel">${privacyLevelOptions(values.dao_transaction_privacy_level)}</select>
+          <select id="daoPrivacyLevel" ${canManage ? '' : 'disabled'}>${privacyLevelOptions(values.dao_transaction_privacy_level)}</select>
         </section>
         <section class="card">
           <p class="small muted">Public ledger is the only active mode. Selecting a planned mode does not hide values, change transaction routing, or activate any ZK contract.</p>
-          <button type="button" onclick="saveCompanySettings()">Save privacy preferences</button>
+          ${canManage ? '<button type="button" onclick="saveCompanySettings()">Save privacy preferences</button>' : '<p class="small muted">View access only.</p>'}
           <span id="settingsSavedAt" class="small muted">${settings?.updated_at ? `Last saved: ${escapeHtml(settings.updated_at)}` : 'No saved preferences yet'}</span>
         </section>`;
     }
@@ -761,6 +887,131 @@
       return Object.entries(privacyLevelLabels).map(([value, label]) =>
         `<option value="${value}"${selected === value ? ' selected' : ''}>${label}</option>`
       ).join('');
+    }
+
+    async function renderExecutiveAccess(org) {
+      const [executives] = await Promise.all([
+        api(`/api/org/${encodeURIComponent(org.serial)}/executives`)
+      ]);
+      const scopes = ['profile','employees','suppliers','invoices','reports','settings','projects','clients','accounting'];
+      const options = (selected, viewOnly) => ['NONE','VIEW',...(viewOnly ? [] : ['MANAGE'])].map(level =>
+        `<option value="${level}"${selected === level ? ' selected' : ''}>${level === 'NONE' ? 'No access' : level.toLowerCase()}</option>`
+      ).join('');
+      const permissionsForm = scopes.map(scope => `<div><label for="execPerm-${scope}">${scope.replace('_',' ')}</label>
+        <select id="execPerm-${scope}">${options('NONE', ['invoices','reports'].includes(scope))}</select></div>`).join('');
+      document.getElementById('content').innerHTML += `
+        <section class="card"><h2>C-suite shared access</h2>
+          <p class="small muted">Nominate a wallet and select function-level access. The nominee must sign in with that wallet and accept. Payments, escrow releases/refunds, DAO and contract administration, and executive access remain owner-controlled.</p>
+          <div class="form-grid"><div><label for="execName">Executive name</label><input id="execName"></div>
+            <div><label for="execOffice">C-suite office / role</label><input id="execOffice" placeholder="CFO, COO, CTO…"></div>
+            <div><label for="execWallet">Nominee wallet</label><input id="execWallet" placeholder="0x…"></div>
+            <div><label for="execEmail">Contact email (optional)</label><input id="execEmail" type="email"></div>
+          </div><div class="form-grid">${permissionsForm}</div><button onclick="nominateExecutive()">Nominate executive</button>
+          <p class="small muted">Reporting, people, supplier, project, client, and target-management scopes can be delegated individually. Invoice and report scopes are view-only.</p>
+        </section>
+        <section class="card"><h2>Executive nominations and access</h2>${executives.length ? executives.map(executive => {
+          const grants = executive.permissions || {};
+          const controls = scopes.map(scope => `<div><label for="exec-${executive.id}-${scope}">${scope.replace('_',' ')}</label>
+            <select id="exec-${executive.id}-${scope}">${options(grants[scope] || 'NONE', ['invoices','reports'].includes(scope))}</select></div>`).join('');
+          return `<article class="card"><div class="row"><div><strong>${escapeHtml(executive.name)} · ${escapeHtml(executive.office)}</strong>
+            <p class="small muted"><code>${escapeHtml(executive.wallet)}</code> · ${escapeHtml(executive.status)} · ${escapeHtml(executive.email)}</p></div></div>
+            <div class="form-grid">${controls}</div><div class="actions"><button onclick="saveExecutivePermissions(${executive.id})">Save access levels</button>
+            ${executive.status !== 'REVOKED' ? `<button onclick="revokeExecutive(${executive.id})">Revoke access</button>` : ''}</div></article>`;
+        }).join('') : '<p class="muted">No C-suite nominations yet.</p>'}</section>`;
+    }
+
+    async function nominateExecutive() {
+      try {
+        const scopes = ['profile','employees','suppliers','invoices','reports','settings','projects','clients','accounting'];
+        const permissions = Object.fromEntries(scopes.map(scope => [scope, document.getElementById(`execPerm-${scope}`).value]));
+        await api(`/api/org/${encodeURIComponent(context.serial)}/executives`, {
+          method:'POST', body:json({
+            name:document.getElementById('execName').value,
+            office:document.getElementById('execOffice').value,
+            wallet:document.getElementById('execWallet').value,
+            email:document.getElementById('execEmail').value,
+            permissions
+          })
+        });
+        showNotice('Wallet-bound executive invitation created. The nominee must accept after signing in.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function saveExecutivePermissions(id) {
+      try {
+        const scopes = ['profile','employees','suppliers','invoices','reports','settings','projects','clients','accounting'];
+        const permissions = Object.fromEntries(scopes.map(scope => [scope, document.getElementById(`exec-${id}-${scope}`).value]));
+        await api(`/api/org/${encodeURIComponent(context.serial)}/executives/${id}/permissions`, {
+          method:'PUT', body:json({ permissions })
+        });
+        showNotice('Executive access levels updated.', 'success');
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function revokeExecutive(id) {
+      if (!confirm('Revoke this executive wallet’s company access?')) return;
+      try {
+        await api(`/api/org/${encodeURIComponent(context.serial)}/executives/${id}/revoke`, { method:'POST', body:'{}' });
+        showNotice('Executive access revoked.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    let companyLocations = [];
+
+    async function renderCompanyProfile(org, canManage = false) {
+      const data = await api(`/api/org/${encodeURIComponent(org.serial)}/profile`);
+      const profile = data.profile || {};
+      companyLocations = data.locations || [];
+      const fields = [
+        ['legal_name','Legal registered name'],['trading_name','Trading name'],['registration_number','Registration number'],
+        ['registration_jurisdiction','Registration jurisdiction'],['tax_id','Tax identifier'],['vat_id','VAT identifier'],
+        ['employee_size','Employee size'],['industry','Industry'],['website','Website'],['email','Company email'],['phone','Company telephone'],
+        ['registered_address','Registered address'],['mailing_address','Mailing address']
+      ];
+      document.getElementById('content').innerHTML = `<section class="card"><h2>Corporate profile · ${escapeHtml(org.name)}</h2>
+        <p class="small muted">Optional corporate records. Tax and registration details are private company data and are never required for wallet or payment flows.</p>
+        <div class="form-grid">${fields.map(([key,label]) => `<div><label for="companyProfile-${key}">${label}</label>
+          ${key.endsWith('address') ? `<textarea id="companyProfile-${key}" rows="2" ${canManage ? '' : 'disabled'}>${escapeHtml(profile[key] || '')}</textarea>`
+            : `<input id="companyProfile-${key}" value="${escapeHtml(profile[key] || '')}" ${key === 'website' ? 'type="url"' : key === 'email' ? 'type="email"' : key === 'phone' ? 'type="tel"' : ''} ${canManage ? '' : 'disabled'}>`}</div>`).join('')}</div>
+        ${canManage ? '<button onclick="addCompanyLocation()">Add office / branch</button>' : ''}
+        <div id="companyLocationsEditor">${renderCompanyLocations(canManage)}</div>
+        ${canManage ? '<button onclick="saveCompanyProfile()">Save company profile and locations</button>' : ''}</section>`;
+    }
+
+    function renderCompanyLocations(canManage) {
+      if (!companyLocations.length) return '<p class="muted">No office locations recorded.</p>';
+      return companyLocations.map((location,index) => `<article class="card"><div class="row"><strong>${escapeHtml(location.name)}</strong>
+        ${canManage ? `<button type="button" onclick="removeCompanyLocation(${index})">Remove</button>` : ''}</div>
+        <div class="form-grid">
+          ${[['name','Office / branch name'],['location_type','Location type'],['address','Street address'],['city','City'],['region','Region'],['country','Country'],['postal_code','Postal code'],['phone','Telephone'],['email','Email']].map(([key,label]) =>
+            `<div><label for="location-${index}-${key}">${label}</label><input id="location-${index}-${key}" value="${escapeHtml(location[key] || '')}" ${canManage ? '' : 'disabled'}></div>`
+          ).join('')}
+        </div></article>`).join('');
+    }
+
+    function addCompanyLocation() {
+      companyLocations.push({ name:'', location_type:'OFFICE', address:'', city:'', region:'', country:'', postal_code:'', phone:'', email:'' });
+      document.getElementById('companyLocationsEditor').innerHTML = renderCompanyLocations(true);
+    }
+
+    function removeCompanyLocation(index) {
+      companyLocations.splice(index, 1);
+      document.getElementById('companyLocationsEditor').innerHTML = renderCompanyLocations(true);
+    }
+
+    async function saveCompanyProfile() {
+      try {
+        const fields = ['legal_name','trading_name','registration_number','registration_jurisdiction','tax_id','vat_id','employee_size','industry','website','email','phone','registered_address','mailing_address'];
+        const profile = Object.fromEntries(fields.map(key => [key, document.getElementById(`companyProfile-${key}`).value]));
+        const locations = companyLocations.map((location,index) => Object.fromEntries(
+          ['name','location_type','address','city','region','country','postal_code','phone','email'].map(key => [key, document.getElementById(`location-${index}-${key}`).value])
+        ));
+        await api(`/api/org/${encodeURIComponent(context.serial)}/profile`, { method:'PUT', body:json({ ...profile, locations }) });
+        showNotice('Company profile and office locations saved.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
     }
 
     async function saveCompanySettings() {
@@ -778,17 +1029,431 @@
       } catch (error) { showNotice(error.message, 'error'); }
     }
 
-    function renderEmployees(rows) {
+    async function renderOrganogram() {
+      const data = await api(`/api/org/${encodeURIComponent(context.serial)}/organogram`);
+      const people = [
+        { wallet:data.ownerWallet, name:'Company owner', title:'Owner', type:'owner', reports_to_wallet:'' },
+        ...data.executives.map(person => ({ ...person, type:'executive', reports_to_wallet:data.ownerWallet })),
+        ...data.employees
+      ];
+      const byWallet = new Map(people.map(person => [person.wallet.toLowerCase(), person]));
+      const children = new Map();
+      for (const person of people) {
+        if (!person.reports_to_wallet) continue;
+        const superior = person.reports_to_wallet.toLowerCase();
+        if (!byWallet.has(superior)) continue;
+        const list = children.get(superior) || [];
+        list.push(person);
+        children.set(superior, list);
+      }
+      function node(person) {
+        const key = person.wallet.toLowerCase();
+        const directReports = children.get(key) || [];
+        const contact = person.email || person.work_email || '';
+        const info = [
+          person.department ? `<p>Department: ${escapeHtml(person.department)}</p>` : '',
+          person.location ? `<p>Location: ${escapeHtml(person.location)}</p>` : '',
+          person.employment_type ? `<p>Employment: ${escapeHtml(person.employment_type)}</p>` : '',
+          person.start_date ? `<p>Start date: ${escapeHtml(person.start_date)}</p>` : '',
+          contact ? `<p>Email: <a href="mailto:${escapeHtml(contact)}">${escapeHtml(contact)}</a></p>` : ''
+        ].join('');
+        return `<li><div class="org-node">
+          <button class="org-node-toggle" type="button" aria-expanded="false" onclick="toggleOrgNode('${key}')">
+            <span><strong>${escapeHtml(person.name || person.wallet)}</strong><small>${escapeHtml(person.title || person.type)} · ${escapeHtml(person.type)}</small></span>
+            <code>${escapeHtml(person.wallet)}</code>
+          </button>
+          <div id="orgDetail-${key}" class="org-detail hidden">${info || '<p class="muted">No additional profile details supplied.</p>'}</div>
+          ${directReports.length ? `<ul id="orgChildren-${key}" class="org-children hidden">${directReports.map(node).join('')}</ul>` : ''}
+        </div></li>`;
+      }
+      const root = byWallet.get(data.ownerWallet.toLowerCase());
+      document.getElementById('content').innerHTML = `<section class="card"><h2>Company organogram</h2>
+        <p class="small muted">Select any name or wallet to expand that person’s profile and reporting line. Employee reporting relationships are saved against verified company wallets.</p>
+        <div class="org-tree"><ul>${root ? node(root) : ''}</ul></div></section>`;
+    }
+
+    function toggleOrgNode(walletAddress) {
+      const detail = document.getElementById(`orgDetail-${walletAddress}`);
+      const children = document.getElementById(`orgChildren-${walletAddress}`);
+      const button = detail?.previousElementSibling;
+      const expanded = detail && !detail.classList.contains('hidden');
+      detail?.classList.toggle('hidden', expanded);
+      children?.classList.toggle('hidden', expanded);
+      button?.setAttribute('aria-expanded', String(!expanded));
+    }
+
+    function projectMemberOptions(employees) {
+      const options = [`<option value="${escapeHtml(wallet)}">Company owner · ${escapeHtml(wallet)}</option>`];
+      for (const employee of employees) options.push(`<option value="${escapeHtml(employee.wallet)}">${escapeHtml(employee.name)} · ${escapeHtml(employee.title)} · ${escapeHtml(employee.wallet)}</option>`);
+      return options.join('');
+    }
+
+    async function renderProjects(org, canManage) {
+      const projects = await api(`/api/org/${encodeURIComponent(context.serial)}/projects`);
+      const employees = await api(`/api/org/${encodeURIComponent(context.serial)}/employees`);
+      const owner = org.roles.includes('owner');
+      const artifacts = org.dao_address ? await getArtifacts() : null;
+      const dao = artifacts ? new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, provider) : null;
+      const projectMarkup = await Promise.all(projects.map(async project => {
+        const projectKey = ethers.id(String(project.id));
+        let onchainBudget = null, committed = null, spent = null;
+        if (dao) {
+          try {
+            [onchainBudget, committed, spent] = await Promise.all([
+              dao.projectBudgets(projectKey), dao.projectCommitted(projectKey), dao.projectSpent(projectKey)
+            ]);
+          } catch {}
+        }
+        const teams = project.teams || [];
+        const teamOptions = teams.map(team => `<option value="${team.id}">${escapeHtml(team.name)}</option>`).join('');
+        const taskMarkup = project.tasks.length ? `<div class="table-wrap"><table><thead><tr><th>Task</th><th>Team / assignee</th><th>Status</th><th>Priority</th><th>Due</th></tr></thead><tbody>${project.tasks.map(task => `<tr><td><strong>${escapeHtml(task.title)}</strong><br><span class="small muted">${escapeHtml(task.description)}</span></td><td>${escapeHtml(teams.find(team => team.id === task.team_id)?.name || '—')}<br><code>${escapeHtml(task.assigned_wallet || 'Unassigned')}</code></td><td>${escapeHtml(task.status)}</td><td>${escapeHtml(task.priority)}</td><td>${escapeHtml(task.due_date || '—')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">No tasks have been created for this project.</p>';
+        const teamMarkup = teams.length ? teams.map(team => `<p><strong>${escapeHtml(team.name)}</strong> · ${escapeHtml(team.description)}<br>${team.members.map(member => `<code>${escapeHtml(member.wallet)}</code>${member.role ? ` · ${escapeHtml(member.role)}` : ''}`).join('<br>')}</p>`).join('') : '<p class="muted">No project teams have been created.</p>';
+        const releases = [];
+        for (const release of project.releases || []) {
+          let proposal = null, canVote = false, hasVoted = false, cancelled = false, delayPassed = false, quorumReached = false;
+          if (dao) {
+            try {
+              proposal = await dao.proposals(release.proposal_id);
+              const voterList = JSON.parse(release.voters_json || '[]');
+              canVote = voterList.some(address => address.toLowerCase() === wallet.toLowerCase());
+              hasVoted = await dao.hasVoted(release.proposal_id, wallet);
+              cancelled = await dao.proposalCancelled(release.proposal_id);
+              const [quorum, delay] = await Promise.all([dao.quorumPercent(), dao.timelockSeconds()]);
+              const voteCount = proposal.votesFor + proposal.votesAgainst;
+              const needed = (BigInt(voterList.length) * BigInt(quorum) + 99n) / 100n;
+              quorumReached = voteCount >= needed && proposal.votesFor > proposal.votesAgainst;
+              delayPassed = BigInt(Math.floor(Date.now()/1000)) >= BigInt(proposal.createdAt) + BigInt(delay);
+            } catch {}
+          }
+          const state = release.status === 'EXECUTED' ? 'Executed' : cancelled ? 'Cancelled' : proposal?.executed ? 'Executed on-chain · awaiting reconciliation' : 'Open for project-team vote';
+          const voteActions = canVote && !hasVoted && proposal && !proposal.executed && !cancelled
+            ? `<button onclick="voteProjectProposal(${project.id},${release.proposal_id},true)">Vote to approve</button><button onclick="voteProjectProposal(${project.id},${release.proposal_id},false)">Vote to reject</button>` : '';
+          const executeAction = owner && proposal && !proposal.executed && !cancelled && quorumReached && delayPassed
+            ? `<button onclick="executeProjectProposal(${project.id},${release.proposal_id})">Execute approved release</button>` : '';
+          releases.push(`<article class="card"><strong>Proposal ${escapeHtml(release.proposal_id)} · ${escapeHtml(displayAmount(release.amount_raw))} USDT</strong>
+            <p>Pay to <code>${escapeHtml(release.recipient_wallet)}</code> · ${state}<br>Team electorate: ${JSON.parse(release.voters_json || '[]').length} wallets</p>
+            ${proposal ? `<p>Votes: ${proposal.votesFor.toString()} for / ${proposal.votesAgainst.toString()} against · ${quorumReached ? 'quorum/majority met' : 'awaiting team quorum and majority'}</p>` : ''}
+            <div class="actions">${voteActions}${executeAction}</div></article>`);
+        }
+        return `<article class="card"><div class="row"><div><h3>${escapeHtml(project.name)}</h3><p>${escapeHtml(project.description)}</p></div><span class="badge">${escapeHtml(project.status)}</span></div>
+          <p>Target budget: <strong>${escapeHtml(displayAmount(project.budget_raw))} USDT</strong> · DAO budget: ${project.dao_budget_synced && onchainBudget !== null ? `${escapeHtml(displayAmount(onchainBudget.toString()))} USDT` : 'Not synced'}
+            ${committed !== null ? ` · Committed: ${escapeHtml(displayAmount(committed.toString()))} · Paid: ${escapeHtml(displayAmount(spent.toString()))}` : ''}</p>
+          <p class="small muted">Dates: ${escapeHtml(project.target_start || 'Not set')} → ${escapeHtml(project.target_end || 'Not set')}</p>
+          <h4>Teams</h4>${teamMarkup}
+          ${canManage ? `<details class="card"><summary>Create project team</summary><label>Team name</label><input id="teamName-${project.id}">
+            <label>Description</label><input id="teamDescription-${project.id}">
+            <label>Wallets (comma-separated; only active company employees, executives, and owner)</label><input id="teamMembers-${project.id}" placeholder="${escapeHtml(wallet)}">
+            <button onclick="createProjectTeam(${project.id})">Create team</button></details>
+            <details class="card"><summary>Add task</summary><label>Task title</label><input id="taskTitle-${project.id}">
+            <label>Description</label><textarea id="taskDescription-${project.id}" rows="2"></textarea>
+            <div class="form-grid"><div><label>Team</label><select id="taskTeam-${project.id}"><option value="">No team</option>${teamOptions}</select></div>
+              <div><label>Assignee wallet</label><input id="taskAssignee-${project.id}" placeholder="Team member wallet"></div>
+              <div><label>Priority</label><select id="taskPriority-${project.id}"><option>NORMAL</option><option>LOW</option><option>HIGH</option><option>URGENT</option></select></div>
+              <div><label>Due date</label><input id="taskDue-${project.id}" type="date"></div></div>
+            <button onclick="createProjectTask(${project.id})">Create task</button></details>` : ''}
+          <h4>Tasks</h4>${taskMarkup}
+          ${owner && org.dao_address ? `<details class="card"><summary>Propose project budget release</summary>
+            ${project.dao_budget_synced ? '' : '<p class="danger">Sync the budget to the DAO before creating a release.</p>'}
+            <label>Voting team</label><select id="releaseTeam-${project.id}">${teamOptions}</select>
+            <div class="form-grid"><div><label>Recipient wallet</label><input id="releaseRecipient-${project.id}" placeholder="0x…"></div><div><label>Amount (USDT)</label><input id="releaseAmount-${project.id}" inputmode="decimal"></div></div>
+            <button ${project.dao_budget_synced ? '' : 'disabled'} onclick="proposeProjectRelease(${project.id})">Create team vote</button></details>` : ''}
+          ${releases.length ? `<h4>Project releases</h4>${releases.join('')}` : '<p class="muted">No project release proposals.</p>'}
+        </article>`;
+      }));
+      document.getElementById('content').innerHTML = `${canManage ? `<section class="card"><h2>Create project</h2>
+        <p class="small muted">Project budgets are on-chain DAO spending caps. Actual releases require a project-team vote and the DAO timelock.</p>
+        <div class="form-grid"><div><label>Project name</label><input id="projectName"></div><div><label>Budget (USDT)</label><input id="projectBudget" inputmode="decimal" value="0"></div>
+          <div><label>Target start</label><input id="projectStart" type="date"></div><div><label>Target end</label><input id="projectEnd" type="date"></div></div>
+        <label>Description</label><textarea id="projectDescription" rows="2"></textarea><button onclick="createProject()">Create project</button></section>` : ''}
+        ${projectMarkup.length ? projectMarkup.join('') : '<section class="card"><p class="muted">No projects have been created.</p></section>'}`;
+    }
+
+    async function createProject() {
+      try {
+        const budgetText = document.getElementById('projectBudget').value || '0';
+        const created = await api(`/api/org/${encodeURIComponent(context.serial)}/projects`, {
+          method:'POST', body:json({
+            name:document.getElementById('projectName').value,
+            description:document.getElementById('projectDescription').value,
+            budget:budgetText,
+            target_start:document.getElementById('projectStart').value,
+            target_end:document.getElementById('projectEnd').value
+          })
+        });
+        const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
+        if (org.dao_address) {
+          const artifacts = await getArtifacts();
+          const dao = new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, signer);
+          const tx = await dao.setProjectBudget(ethers.id(String(created.id)), ethers.parseUnits(budgetText, 18));
+          const receipt = await tx.wait();
+          if (receipt.status !== 1) throw new Error('Project saved, but DAO budget synchronization failed.');
+          await api(`/api/org/${encodeURIComponent(context.serial)}/projects/${created.id}/budget/confirm`, {
+            method:'POST', body:json({ txHash:receipt.hash })
+          });
+        }
+        showNotice(org.dao_address ? 'Project created and its budget cap synced to the DAO.' : 'Project created. Deploy the company DAO before syncing its budget.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function createProjectTeam(projectId) {
+      try {
+        const members = document.getElementById(`teamMembers-${projectId}`).value.split(',').map(walletAddress => walletAddress.trim()).filter(Boolean).map(walletAddress => ({ wallet:walletAddress }));
+        await api(`/api/org/${encodeURIComponent(context.serial)}/projects/${projectId}/teams`, {
+          method:'POST', body:json({
+            name:document.getElementById(`teamName-${projectId}`).value,
+            description:document.getElementById(`teamDescription-${projectId}`).value,
+            members
+          })
+        });
+        showNotice('Project team created.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function createProjectTask(projectId) {
+      try {
+        const team = document.getElementById(`taskTeam-${projectId}`).value;
+        await api(`/api/org/${encodeURIComponent(context.serial)}/projects/${projectId}/tasks`, {
+          method:'POST', body:json({
+            title:document.getElementById(`taskTitle-${projectId}`).value,
+            description:document.getElementById(`taskDescription-${projectId}`).value,
+            team_id:team || null,
+            assigned_wallet:document.getElementById(`taskAssignee-${projectId}`).value,
+            priority:document.getElementById(`taskPriority-${projectId}`).value,
+            due_date:document.getElementById(`taskDue-${projectId}`).value
+          })
+        });
+        showNotice('Project task created.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function proposeProjectRelease(projectId) {
+      try {
+        const teamId = Number(document.getElementById(`releaseTeam-${projectId}`).value);
+        if (!teamId) throw new Error('Create and select a project team before proposing a release.');
+        const projects = await api(`/api/org/${encodeURIComponent(context.serial)}/projects`);
+        const project = projects.find(item => item.id === projectId);
+        const team = project?.teams.find(item => item.id === teamId);
+        if (!team?.members.length) throw new Error('The selected project team has no voting members.');
+        const recipient = ethers.getAddress(document.getElementById(`releaseRecipient-${projectId}`).value.trim());
+        const amountText = document.getElementById(`releaseAmount-${projectId}`).value.trim();
+        const amountValue = ethers.parseUnits(amountText, 18);
+        if (amountValue <= 0n) throw new Error('Release amount must be positive.');
+        if (!confirm(`Submit a ${amountText} USDT project payout proposal to the team electorate? Funds are paid only after team approval, quorum, and the DAO timelock.`)) return;
+        const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
+        const artifacts = await getArtifacts();
+        const dao = new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, signer);
+        const voters = team.members.map(member => ethers.getAddress(member.wallet));
+        showNotice('Submitting project release proposal to the DAO…');
+        const tx = await dao.createProjectProposal(ethers.id(String(project.id)), USDT_ADDRESS, recipient, amountValue, voters);
+        const receipt = await tx.wait();
+        if (receipt.status !== 1) throw new Error('Project release proposal transaction failed.');
+        const projectProposalEvent = receipt.logs
+          .filter(log => log.address.toLowerCase() === org.dao_address.toLowerCase())
+          .map(log => { try { return new ethers.Interface(artifacts.CompanyDAO.abi).parseLog(log); } catch { return null; } })
+          .find(parsed => parsed?.name === 'ProjectProposalCreated' && parsed.args.projectId === ethers.id(String(project.id)));
+        if (!projectProposalEvent) throw new Error('DAO receipt did not contain the expected project proposal event.');
+        const proposalId = projectProposalEvent.args.proposalId.toString();
+        await api(`/api/org/${encodeURIComponent(context.serial)}/projects/${project.id}/releases`, {
+          method:'POST',
+          body:json({ team_id:team.id, proposal_id:proposalId, txHash:receipt.hash })
+        });
+        showNotice(`Project payout proposal ${proposalId} created. Team members can now vote on-chain.`, 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function voteProjectProposal(projectId, proposalId, support) {
+      try {
+        const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
+        const artifacts = await getArtifacts();
+        const dao = new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, signer);
+        const tx = await dao.vote(proposalId, support);
+        const receipt = await tx.wait();
+        if (receipt.status !== 1) throw new Error('Project vote was not confirmed.');
+        showNotice(`Project vote ${support ? 'for' : 'against'} recorded on-chain.`, 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function executeProjectProposal(projectId, proposalId) {
+      try {
+        if (!confirm('Execute this project payout from the DAO treasury after the team quorum, majority, and timelock checks?')) return;
+        const org = await api(`/api/org/${encodeURIComponent(context.serial)}`);
+        const artifacts = await getArtifacts();
+        const dao = new ethers.Contract(org.dao_address, artifacts.CompanyDAO.abi, signer);
+        const tx = await dao.execute(proposalId);
+        const receipt = await tx.wait();
+        if (receipt.status !== 1) throw new Error('Project payout execution failed.');
+        await api(`/api/org/${encodeURIComponent(context.serial)}/projects/${projectId}/releases/${proposalId}/confirm`, {
+          method:'POST', body:json({ txHash:receipt.hash })
+        });
+        showNotice('Project payout confirmed on-chain and recorded against the project budget.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function renderMyProjects() {
+      const projects = await api('/api/my/projects');
+      document.getElementById('content').innerHTML = `<section class="card"><h2>My projects and tasks</h2>
+        <p class="small muted">Update task status here. Project funding and release votes are executed by their assigned team wallets on the DAO.</p>
+        ${projects.length ? projects.map(project => `<article class="card"><h3>${escapeHtml(project.name)} · ${escapeHtml(project.company_name)}</h3>
+          <p>${escapeHtml(project.description)}</p>${project.tasks.map(task => `<div class="task-row"><div><strong>${escapeHtml(task.title)}</strong><p class="small muted">${escapeHtml(task.description)} · Due ${escapeHtml(task.due_date || 'not set')}</p></div>
+            <select id="myTask-${task.id}"><option ${task.status === 'TODO' ? 'selected' : ''}>TODO</option><option ${task.status === 'IN_PROGRESS' ? 'selected' : ''}>IN_PROGRESS</option><option ${task.status === 'BLOCKED' ? 'selected' : ''}>BLOCKED</option><option ${task.status === 'DONE' ? 'selected' : ''}>DONE</option></select>
+            <button onclick="updateMyTask(${project.id},${task.id})">Save status</button></div>`).join('')}
+          ${project.releases?.length ? `<h4>Project release votes</h4>${project.releases.map(release => `<p>Proposal ${escapeHtml(release.proposal_id)} · ${escapeHtml(displayAmount(release.amount_raw))} USDT · ${escapeHtml(release.status)}
+            ${JSON.parse(release.voters_json || '[]').some(item => item.toLowerCase() === wallet.toLowerCase()) && release.status === 'PROPOSED'
+              ? `<button onclick="voteProjectProposal(${project.id},${release.proposal_id},true)">Vote for</button><button onclick="voteProjectProposal(${project.id},${release.proposal_id},false)">Vote against</button>` : ''}</p>`).join('')}` : ''}
+          </article>`).join('') : '<p class="muted">No active project assignments.</p>'}</section>`;
+    }
+
+    async function updateMyTask(projectId, taskId) {
+      try {
+        const status = document.getElementById(`myTask-${taskId}`).value;
+        await api(`/api/my/projects/${projectId}/tasks/${taskId}`, { method:'PUT', body:json({ status }) });
+        showNotice('Task status updated.', 'success');
+        await renderMyProjects();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function renderClients(canManage) {
+      const clients = await api(`/api/org/${encodeURIComponent(context.serial)}/clients`);
+      const stages = ['LEAD','QUALIFIED','PROPOSAL','NEGOTIATION','WON','LOST'];
+      document.getElementById('content').innerHTML = `${canManage ? `<section class="card"><h2>New client opportunity</h2>
+        <div class="form-grid"><div><label>Contact name</label><input id="clientName"></div><div><label>Organization</label><input id="clientCompany"></div>
+          <div><label>Email</label><input id="clientEmail" type="email"></div><div><label>Phone</label><input id="clientPhone" type="tel"></div>
+          <div><label>Website</label><input id="clientWebsite" type="url"></div><div><label>Industry</label><input id="clientIndustry"></div>
+          <div><label>Pipeline stage</label><select id="clientStatus">${stages.map(stage => `<option>${stage}</option>`).join('')}</select></div>
+          <div><label>Estimated opportunity value (USDT)</label><input id="clientValue" inputmode="decimal" value="0"></div>
+          <div><label>Expected close</label><input id="clientClose" type="date"></div><div><label>Next action</label><input id="clientNextAction"></div></div>
+        <label>Notes</label><textarea id="clientNotes" rows="2"></textarea><button onclick="saveClient()">Add prospect / client</button></section>` : ''}
+        <section class="card"><h2>Acquisition pipeline</h2>${clients.length ? `<div class="table-wrap"><table><thead><tr><th>Company / contact</th><th>Stage</th><th>Opportunity (USDT)</th><th>Expected close</th><th>Next action</th>${canManage ? '<th>Update</th>' : ''}</tr></thead><tbody>${clients.map(client => `<tr>
+          <td><strong>${escapeHtml(client.company_name || client.name)}</strong><br>${escapeHtml(client.name)} · ${escapeHtml(client.email)} · ${escapeHtml(client.phone)}</td>
+          <td>${escapeHtml(client.status)}</td><td>${escapeHtml(displayAmount(client.estimated_value_raw))}</td><td>${escapeHtml(client.expected_close || '—')}</td><td>${escapeHtml(client.next_action || '—')}</td>
+          ${canManage ? `<td><select id="clientStage-${client.id}">${stages.map(stage => `<option ${client.status === stage ? 'selected' : ''}>${stage}</option>`).join('')}</select><button onclick="updateClientStage(${client.id})">Save</button></td>` : ''}
+          </tr>`).join('')}</tbody></table></div>` : '<p class="muted">No prospects have been added.</p>'}</section>`;
+    }
+
+    async function saveClient() {
+      try {
+        await api(`/api/org/${encodeURIComponent(context.serial)}/clients`, { method:'POST', body:json({
+          name:document.getElementById('clientName').value,
+          company_name:document.getElementById('clientCompany').value,
+          email:document.getElementById('clientEmail').value,
+          phone:document.getElementById('clientPhone').value,
+          website:document.getElementById('clientWebsite').value,
+          industry:document.getElementById('clientIndustry').value,
+          status:document.getElementById('clientStatus').value,
+          estimated_value:document.getElementById('clientValue').value,
+          expected_close:document.getElementById('clientClose').value,
+          next_action:document.getElementById('clientNextAction').value,
+          notes:document.getElementById('clientNotes').value
+        }) });
+        showNotice('Client opportunity added to the acquisition pipeline.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function updateClientStage(id) {
+      try {
+        await api(`/api/org/${encodeURIComponent(context.serial)}/clients/${id}`, {
+          method:'PUT', body:json({ status:document.getElementById(`clientStage-${id}`).value })
+        });
+        showNotice('Client pipeline stage updated.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function renderAccounting(canManage) {
+      const accounting = await api(`/api/org/${encodeURIComponent(context.serial)}/accounting`);
+      const targets = accounting.targets || [];
+      const actuals = accounting.actuals || [];
+      const scan = accounting.scan || {};
+      const targetRows = targets.map(target => {
+        const actual = actuals.find(item => item.period === target.period) || { income_raw:'0', outflow_raw:'0' };
+        return `<tr><td>${escapeHtml(target.period)}</td><td>${escapeHtml(displayAmount(target.target_income_raw))}</td><td>${escapeHtml(displayAmount(actual.income_raw))}</td>
+          <td>${escapeHtml(displayAmount(target.target_outflow_raw))}</td><td>${escapeHtml(displayAmount(actual.outflow_raw))}</td></tr>`;
+      }).join('');
+      document.getElementById('content').innerHTML = `<section class="card"><h2>On-chain cash targets vs actuals</h2>
+        <p class="small muted">Actuals come only from confirmed USDT transfers to or from the company owner, DAO, and escrow wallets. This is an on-chain cash movement report, not accrual accounting or a certified profit-and-loss statement. Internal transfers between company wallets are excluded.</p>
+        ${canManage ? `<div class="form-grid"><div><label>Period</label><input id="targetPeriod" type="month"></div><div><label>Target income / receipts (USDT)</label><input id="targetIncome" inputmode="decimal" value="0"></div>
+          <div><label>Target outflows / payments (USDT)</label><input id="targetOutflow" inputmode="decimal" value="0"></div></div><button onclick="saveFinancialTarget()">Save period targets</button>` : ''}
+        ${canManage ? `<section class="card"><h3>RPC transfer history sync</h3><p class="small muted">${scan.last_scanned_block === null || scan.last_scanned_block === undefined ? 'Choose a history start block for USDT Transfer events.' : `Last indexed block: ${escapeHtml(scan.last_scanned_block)} · Start block: ${escapeHtml(scan.start_block)}`}</p>
+          ${scan.last_scanned_block === null || scan.last_scanned_block === undefined ? '<label>History start block</label><input id="accountingStartBlock" type="number" min="0" placeholder="Block number">' : ''}
+          <p class="small muted">Each sync reads up to 2,000 blocks from the configured Lunul RPC. In-app-confirmed transfers remain included and are deduplicated against indexed transaction hashes.</p><button onclick="syncAccounting(${scan.last_scanned_block === null || scan.last_scanned_block === undefined ? 'true' : 'false'})">Sync next RPC block range</button></section>` : ''}
+        <section class="card"><h3>Monthly targets and confirmed activity</h3>${targetRows ? `<div class="table-wrap"><table><thead><tr><th>Period</th><th>Income target</th><th>Confirmed receipts</th><th>Outflow target</th><th>Confirmed payments</th></tr></thead><tbody>${targetRows}</tbody></table></div>` : '<p class="muted">No monthly targets saved. Actuals will appear when on-chain transfers are indexed or verified through app workflows.</p>'}</section>
+        <section class="card"><h3>Verified USDT movements</h3>${accounting.transfers.length ? `<div class="table-wrap"><table><thead><tr><th>Time</th><th>From</th><th>To</th><th>Amount</th><th>Source</th><th>Tx</th></tr></thead><tbody>${accounting.transfers.slice(0,100).map(item => `<tr><td>${escapeHtml(item.timestamp)}</td><td class="mono">${escapeHtml(item.wallet_from)}</td><td class="mono">${escapeHtml(item.wallet_to)}</td><td>${escapeHtml(displayAmount(item.amount_raw))} USDT</td><td>${escapeHtml(item.source)}</td><td class="mono">${escapeHtml(item.tx_hash)}</td></tr>`).join('')}</tbody></table></div>
+          <button onclick="exportAccountingCsv()">Download cash activity CSV</button>` : '<p class="muted">No verified USDT movements are available for the configured history range.</p>'}</section></section>`;
+      window.accountingReport = accounting;
+    }
+
+    async function saveFinancialTarget() {
+      try {
+        await api(`/api/org/${encodeURIComponent(context.serial)}/accounting/targets`, { method:'PUT', body:json({
+          period:document.getElementById('targetPeriod').value,
+          target_income:document.getElementById('targetIncome').value,
+          target_outflow:document.getElementById('targetOutflow').value
+        }) });
+        showNotice('On-chain cash targets saved.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function syncAccounting(firstSync) {
+      try {
+        const body = firstSync ? { start_block:document.getElementById('accountingStartBlock').value } : {};
+        const result = await api(`/api/org/${encodeURIComponent(context.serial)}/accounting/sync`, { method:'POST', body:json(body) });
+        showNotice(`Indexed ${result.indexed} USDT transfers in blocks ${result.fromBlock}–${result.toBlock}${result.hasMore ? '. Sync again for the next range.' : '.'}`, 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function exportAccountingCsv() {
+      try {
+        const report = window.accountingReport || await api(`/api/org/${encodeURIComponent(context.serial)}/accounting`);
+        const lines = [['tx_hash','log_index','timestamp','wallet_from','wallet_to','amount_usdt','source']];
+        for (const transfer of report.transfers) lines.push([transfer.tx_hash,transfer.log_index ?? '',transfer.timestamp,transfer.wallet_from,transfer.wallet_to,displayAmount(transfer.amount_raw),transfer.source]);
+        saveCsv(`terminull-${context.serial}-onchain-cash-activity.csv`, lines.map(row => row.map(csvCell).join(',')).join('\r\n')+'\r\n');
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    function renderEmployees(rows, canManage = false) {
       if (!rows.length) return '<p class="muted">No employees have been added.</p>';
-      return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Title</th><th>Wallet</th><th>Monthly USDT</th><th>Status</th></tr></thead><tbody>${rows.map(row =>
-        `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.title)}</td><td class="mono">${escapeHtml(row.wallet)}</td><td>${escapeHtml(displayAmount(row.salary_raw))}</td><td>${escapeHtml(row.status)}</td></tr>`
+      return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Title / department</th><th>Wallet</th><th>Contact</th><th>Office</th><th>Monthly USDT</th><th>Status</th>${canManage ? '<th>Profile</th>' : ''}</tr></thead><tbody>${rows.map(row =>
+        `<tr><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.title)}${row.department ? `<br>${escapeHtml(row.department)}` : ''}</td><td class="mono">${escapeHtml(row.wallet)}</td><td>${escapeHtml(row.work_email)}<br>${escapeHtml(row.work_phone)}</td><td>${escapeHtml(row.location)}</td><td>${row.salary_raw ? `${escapeHtml(displayAmount(row.salary_raw))} USDT` : '—'}</td><td>${escapeHtml(row.status)}</td>
+          ${canManage ? `<td><details><summary>Edit</summary><div class="profile-edit">
+            <label>Name</label><input id="editEmployee-${row.id}-name" value="${escapeHtml(row.name)}">
+            <label>Title</label><input id="editEmployee-${row.id}-title" value="${escapeHtml(row.title)}">
+            <label>Monthly USDT</label><input id="editEmployee-${row.id}-salary" value="${row.salary_raw ? escapeHtml(displayAmount(row.salary_raw)) : ''}">
+            <label>Department</label><input id="editEmployee-${row.id}-department" value="${escapeHtml(row.department)}">
+            <label>Work email</label><input id="editEmployee-${row.id}-work_email" value="${escapeHtml(row.work_email)}">
+            <label>Work phone</label><input id="editEmployee-${row.id}-work_phone" value="${escapeHtml(row.work_phone)}">
+            <label>Employment type</label><input id="editEmployee-${row.id}-employment_type" value="${escapeHtml(row.employment_type)}">
+            <label>Start date</label><input id="editEmployee-${row.id}-start_date" type="date" value="${escapeHtml(row.start_date)}">
+            <label>Location</label><input id="editEmployee-${row.id}-location" value="${escapeHtml(row.location)}">
+            <label>Reports-to wallet</label><input id="editEmployee-${row.id}-reports_to_wallet" value="${escapeHtml(row.reports_to_wallet)}">
+            <button onclick="saveEmployeeRecord(${row.id})">Save employee</button></div></details></td>` : ''}</tr>`
       ).join('')}</tbody></table></div>`;
     }
 
-    function renderSuppliers(rows) {
+    function renderSuppliers(rows, canManage = false) {
       if (!rows.length) return '<p class="muted">No suppliers have been added.</p>';
-      return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Wallet</th><th>Email</th><th>Status</th></tr></thead><tbody>${rows.map(row =>
-        `<tr><td>${escapeHtml(row.name)}</td><td class="mono">${escapeHtml(row.wallet)}</td><td>${escapeHtml(row.contact_email)}</td><td>${escapeHtml(row.status)}</td></tr>`
+      return `<div class="table-wrap"><table><thead><tr><th>Name</th><th>Registration / tax</th><th>Wallet</th><th>Contact</th><th>Address / terms</th><th>Status</th>${canManage ? '<th>Profile</th>' : ''}</tr></thead><tbody>${rows.map(row =>
+        `<tr><td>${escapeHtml(row.name)}${row.legal_name ? `<br><span class="small muted">${escapeHtml(row.legal_name)}</span>` : ''}</td><td>${escapeHtml(row.registration_number)}${row.tax_id ? `<br>${escapeHtml(row.tax_id)}` : ''}${row.vat_id ? `<br>${escapeHtml(row.vat_id)}` : ''}</td><td class="mono">${escapeHtml(row.wallet)}</td><td>${escapeHtml(row.contact_email)}<br>${escapeHtml(row.phone)}${row.website ? `<br>${escapeHtml(row.website)}` : ''}</td><td>${escapeHtml(row.billing_address)}<br>${escapeHtml(row.payment_terms)}</td><td>${escapeHtml(row.status)}</td>
+          ${canManage ? `<td><details><summary>Edit</summary><div class="profile-edit">
+            <label>Supplier name</label><input id="editSupplier-${row.id}-name" value="${escapeHtml(row.name)}">
+            <label>Legal name</label><input id="editSupplier-${row.id}-legal_name" value="${escapeHtml(row.legal_name)}">
+            <label>Contact email</label><input id="editSupplier-${row.id}-email" value="${escapeHtml(row.contact_email)}">
+            <label>Registration number</label><input id="editSupplier-${row.id}-registration_number" value="${escapeHtml(row.registration_number)}">
+            <label>Tax ID</label><input id="editSupplier-${row.id}-tax_id" value="${escapeHtml(row.tax_id)}">
+            <label>VAT ID</label><input id="editSupplier-${row.id}-vat_id" value="${escapeHtml(row.vat_id)}">
+            <label>Website</label><input id="editSupplier-${row.id}-website" value="${escapeHtml(row.website)}">
+            <label>Phone</label><input id="editSupplier-${row.id}-phone" value="${escapeHtml(row.phone)}">
+            <label>Billing address</label><textarea id="editSupplier-${row.id}-billing_address" rows="2">${escapeHtml(row.billing_address)}</textarea>
+            <label>Payment terms</label><input id="editSupplier-${row.id}-payment_terms" value="${escapeHtml(row.payment_terms)}">
+            <button onclick="saveSupplierRecord(${row.id})">Save supplier</button></div></details></td>` : ''}</tr>`
       ).join('')}</tbody></table></div>`;
     }
 
@@ -811,7 +1476,14 @@
           name:document.getElementById('employeeName').value,
           wallet:document.getElementById('employeeWallet').value,
           title:document.getElementById('employeeTitle').value,
-          salary:document.getElementById('employeeSalary').value
+          salary:document.getElementById('employeeSalary').value,
+          department:document.getElementById('employeeDepartment').value,
+          work_email:document.getElementById('employeeEmail').value,
+          work_phone:document.getElementById('employeePhone').value,
+          employment_type:document.getElementById('employeeType').value,
+          start_date:document.getElementById('employeeStartDate').value,
+          location:document.getElementById('employeeLocation').value,
+          reports_to_wallet:document.getElementById('employeeReportsTo').value
         };
         await api(`/api/org/${encodeURIComponent(context.serial)}/employees`, { method:'POST', body:json(body) });
         showNotice('Employee saved.', 'success'); await renderWorkspace();
@@ -822,11 +1494,49 @@
       try {
         const body = {
           name:document.getElementById('supplierName').value,
+          legal_name:document.getElementById('supplierLegalName').value,
           wallet:document.getElementById('supplierWallet').value,
-          email:document.getElementById('supplierEmail').value
+          email:document.getElementById('supplierEmail').value,
+          registration_number:document.getElementById('supplierRegistration').value,
+          tax_id:document.getElementById('supplierTaxId').value,
+          vat_id:document.getElementById('supplierVatId').value,
+          phone:document.getElementById('supplierPhone').value,
+          website:document.getElementById('supplierWebsite').value,
+          billing_address:document.getElementById('supplierBillingAddress').value,
+          payment_terms:document.getElementById('supplierPaymentTerms').value
         };
         await api(`/api/org/${encodeURIComponent(context.serial)}/suppliers`, { method:'POST', body:json(body) });
         showNotice('Supplier saved.', 'success'); await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function saveEmployeeRecord(id) {
+      try {
+        const value = field => document.getElementById(`editEmployee-${id}-${field}`).value;
+        await api(`/api/org/${encodeURIComponent(context.serial)}/employees/${id}`, {
+          method:'PUT', body:json({
+            name:value('name'), title:value('title'), salary:value('salary'), department:value('department'),
+            work_email:value('work_email'), work_phone:value('work_phone'), employment_type:value('employment_type'),
+            start_date:value('start_date'), location:value('location'), reports_to_wallet:value('reports_to_wallet')
+          })
+        });
+        showNotice('Employee profile updated.', 'success');
+        await renderWorkspace();
+      } catch (error) { showNotice(error.message, 'error'); }
+    }
+
+    async function saveSupplierRecord(id) {
+      try {
+        const value = field => document.getElementById(`editSupplier-${id}-${field}`).value;
+        await api(`/api/org/${encodeURIComponent(context.serial)}/suppliers/${id}`, {
+          method:'PUT', body:json({
+            name:value('name'), legal_name:value('legal_name'), email:value('email'),
+            registration_number:value('registration_number'), tax_id:value('tax_id'), vat_id:value('vat_id'),
+            website:value('website'), phone:value('phone'), billing_address:value('billing_address'), payment_terms:value('payment_terms')
+          })
+        });
+        showNotice('Supplier profile updated.', 'success');
+        await renderWorkspace();
       } catch (error) { showNotice(error.message, 'error'); }
     }
 
@@ -894,8 +1604,8 @@
 
     function downloadCsv(kind) {
       const templates = {
-        employees:'name,wallet,title,salary\nEMPLOYEE_NAME,PASTE_EMPLOYEE_WALLET_HERE,JOB_TITLE,MONTHLY_USDT_AMOUNT\n',
-        suppliers:'name,wallet,email\nSUPPLIER_NAME,PASTE_SUPPLIER_WALLET_HERE,EMAIL_ADDRESS\n',
+        employees:'name,wallet,title,salary,department,work_email,work_phone,employment_type,start_date,location,reports_to_wallet\nEMPLOYEE_NAME,PASTE_EMPLOYEE_WALLET_HERE,JOB_TITLE,MONTHLY_USDT_AMOUNT,DEPARTMENT,WORK_EMAIL,WORK_PHONE,EMPLOYMENT_TYPE,YYYY-MM-DD,OFFICE_OR_BRANCH,MANAGER_WALLET\n',
+        suppliers:'name,wallet,email,legal_name,registration_number,tax_id,vat_id,website,phone,billing_address,payment_terms\nSUPPLIER_NAME,PASTE_SUPPLIER_WALLET_HERE,EMAIL_ADDRESS,LEGAL_NAME,REGISTRATION_NUMBER,TAX_ID,VAT_ID,https://example.com,PHONE,BILLING_ADDRESS,NET_30\n',
         payments:'wallet,amount,memo\nPASTE_RECIPIENT_WALLET_HERE,AMOUNT_IN_USDT,MEMO\n'
       };
       saveCsv(`${kind}-template.csv`, templates[kind]);
@@ -977,6 +1687,7 @@
     }
 
     async function renderEmployee() {
+      if (activeTab === 'projects') return renderMyProjects();
       const employees = await api(`/api/org/${encodeURIComponent(context.serial)}/employees`);
       const employee = employees.find(row => row.wallet.toLowerCase() === wallet.toLowerCase());
       const activity = await api(`/api/org/${encodeURIComponent(context.serial)}/activity`);
@@ -1084,6 +1795,7 @@
       const proposals = [];
       const proposalCount = Number(count);
       for (let id=Math.max(1, proposalCount - 99); id<=proposalCount; id++) {
+        if (await dao.isProjectProposal(BigInt(id))) continue;
         const p = await dao.proposals(BigInt(id));
         proposals.push({ id, ...p });
       }
@@ -1174,13 +1886,17 @@
     async function exportCompanyReport() {
       try {
         const data = await api(`/api/org/${encodeURIComponent(context.serial)}/report`);
-        const lines = [['record_type','id','tx_hash','timestamp','kind','from','to','amount','asset','status','memo']];
-        for (const tx of data.transactions) lines.push(['transaction','',tx.tx_hash,tx.timestamp,tx.kind,tx.wallet_from,tx.wallet_to,displayAmount(tx.amount_raw),tx.asset,tx.status,tx.memo]);
-        for (const invoice of data.invoices) lines.push(['invoice',invoice.id,invoice.tx_hash || '', '',invoice.invoice_number,invoice.supplier_wallet,context.serial,displayAmount(invoice.amount_raw),'USDT',invoice.status,invoice.description]);
-        for (const employee of data.employees) lines.push(['employee','','','','',employee.wallet,'',displayAmount(employee.salary_raw),'USDT',employee.status,employee.name]);
-        for (const supplier of data.suppliers) lines.push(['supplier','','','','',supplier.wallet,'','','',supplier.status,supplier.name]);
+        const lines = [['record_type','id','name','wallet','contact','role','registration_number','tax_id','website','address','manager_wallet','status','amount_usdt','due_date','tx_hash','timestamp','details']];
+        for (const tx of data.transactions) lines.push(['transaction','',tx.kind,tx.wallet_from,tx.wallet_to,'','','','','','',tx.status,displayAmount(tx.amount_raw),'',tx.tx_hash,tx.timestamp,tx.memo]);
+        for (const invoice of data.invoices) lines.push(['invoice',invoice.id,invoice.invoice_number,invoice.supplier_wallet,'','', '', '', '',context.serial,'',invoice.status,displayAmount(invoice.amount_raw),invoice.due_date,invoice.tx_hash || '', '',invoice.description]);
+        for (const employee of data.employees) lines.push(['employee','',employee.name,employee.wallet,employee.work_email || employee.work_phone,`${employee.title} · ${employee.department || ''}`,'','','',employee.location,employee.reports_to_wallet,employee.status,employee.salary_raw ? displayAmount(employee.salary_raw) : '', '', '', '',employee.employment_type]);
+        for (const supplier of data.suppliers) lines.push(['supplier','',supplier.name,supplier.wallet,supplier.contact_email,'supplier',supplier.registration_number,supplier.tax_id,supplier.website,supplier.billing_address,'',supplier.status,'','', '', '',`${supplier.legal_name} · VAT ${supplier.vat_id} · ${supplier.payment_terms}`]);
+        if (data.companyProfile) lines.push(['company','','',context.serial,data.companyProfile.email,'company',data.companyProfile.registration_number,data.companyProfile.tax_id,data.companyProfile.website,data.companyProfile.registered_address,'','ACTIVE','','','','',`${data.companyProfile.legal_name} · ${data.companyProfile.trading_name} · VAT ${data.companyProfile.vat_id} · ${data.companyProfile.phone}`]);
+        for (const location of data.locations) lines.push(['location','',location.name,context.serial,location.email,location.location_type,'','','',`${location.address}, ${location.city}, ${location.region}, ${location.country} ${location.postal_code}`,'','ACTIVE','','','', '',location.phone]);
+        for (const project of data.projects) lines.push(['project',project.id,project.name,'','','project','','','', '', '',project.status,displayAmount(project.budget_raw),project.target_end,'','',project.description]);
+        for (const client of data.clients) lines.push(['client','',client.company_name || client.name,'',client.email,'prospect','','','','','',client.status,displayAmount(client.estimated_value_raw),client.expected_close,'','',`${client.next_action} · ${client.notes}`]);
         saveCsv(`terminull-${context.serial}-report.csv`, lines.map(row => row.map(csvCell).join(',')).join('\r\n')+'\r\n');
-        showNotice('Report downloaded. Only confirmed chain receipts are represented as transactions.', 'success');
+        showNotice('Company report downloaded. Financial transaction rows are confirmed on-chain activity; profile and pipeline rows are company records.', 'success');
       } catch (error) { showNotice(error.message, 'error'); }
     }
 

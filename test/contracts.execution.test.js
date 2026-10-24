@@ -46,16 +46,26 @@ test('Paris DAO and escrow execute treasury operations on an isolated EVM', asyn
   const artifacts = compileContracts();
   const owner = new ethers.Wallet(`0x${'11'.repeat(32)}`);
   const supplier = new ethers.Wallet(`0x${'22'.repeat(32)}`);
+  const projectVoter = new ethers.Wallet(`0x${'33'.repeat(32)}`);
+  const secondProjectVoter = new ethers.Wallet(`0x${'44'.repeat(32)}`);
+  const outsider = new ethers.Wallet(`0x${'55'.repeat(32)}`);
   const ownerAddress = createAddressFromPrivateKey(hexToBytes(owner.privateKey));
   await vm.stateManager.putAccount(ownerAddress, createAccount({ nonce: 0n, balance: 10n ** 30n }));
+  for (const signer of [projectVoter, secondProjectVoter, outsider]) {
+    const address = createAddressFromPrivateKey(hexToBytes(signer.privateKey));
+    await vm.stateManager.putAccount(address, createAccount({ nonce: 0n, balance: 10n ** 30n }));
+  }
 
-  let nonce = 0;
+  const nonces = new Map([[owner.address.toLowerCase(), 0]]);
   let blockNumber = 1n;
   let timestamp = 1_000n;
-  async function transact(to, data) {
-    const raw = await owner.signTransaction({
+  async function transact(to, data, signer = owner) {
+    const key = signer.address.toLowerCase();
+    const nonce = nonces.get(key) || 0;
+    nonces.set(key, nonce + 1);
+    const raw = await signer.signTransaction({
       chainId: 448000,
-      nonce: nonce++,
+      nonce,
       gasLimit: 12_000_000,
       gasPrice: 1_000_000_000,
       ...(to ? { to } : {}),
@@ -119,6 +129,44 @@ test('Paris DAO and escrow execute treasury operations on an isolated EVM', asyn
   result = await transact(dao, daoInterface.encodeFunctionData('execute', [1]));
   assert.ok(result.execResult.exceptionError, 'executed DAO proposals cannot pay twice');
 
+  const projectId = ethers.id('integration-project');
+  result = await transact(token, tokenInterface.encodeFunctionData('transfer', [dao, amount * 2n]));
+  assert.equal(result.execResult.exceptionError, undefined);
+  result = await transact(dao, daoInterface.encodeFunctionData('setProjectBudget', [projectId, amount * 2n]));
+  assert.equal(result.execResult.exceptionError, undefined);
+  result = await transact(dao, daoInterface.encodeFunctionData('createProjectProposal', [
+    projectId, token, supplier.address, amount, [projectVoter.address, secondProjectVoter.address]
+  ]));
+  assert.equal(result.execResult.exceptionError, undefined);
+  const projectProposalId = 2;
+  result = await transact(dao, daoInterface.encodeFunctionData('vote', [projectProposalId, true]), outsider);
+  assert.ok(result.execResult.exceptionError, 'non-team wallets cannot vote on project releases');
+  result = await transact(dao, daoInterface.encodeFunctionData('vote', [projectProposalId, true]), projectVoter);
+  assert.equal(result.execResult.exceptionError, undefined);
+  result = await transact(dao, daoInterface.encodeFunctionData('execute', [projectProposalId]));
+  assert.ok(result.execResult.exceptionError, 'project quorum requires participation from both snapshotted voters');
+  result = await transact(dao, daoInterface.encodeFunctionData('vote', [projectProposalId, true]), secondProjectVoter);
+  assert.equal(result.execResult.exceptionError, undefined);
+  result = await transact(dao, daoInterface.encodeFunctionData('execute', [projectProposalId]));
+  assert.equal(result.execResult.exceptionError, undefined);
+  assert.equal((await call(dao, daoInterface, 'projectSpent', [projectId]))[0], amount);
+  assert.equal((await call(dao, daoInterface, 'projectCommitted', [projectId]))[0], amount);
+  assert.equal((await call(token, tokenInterface, 'balanceOf', [supplier.address]))[0], amount * 2n);
+
+  result = await transact(dao, daoInterface.encodeFunctionData('createProjectProposal', [
+    projectId, token, supplier.address, amount * 2n, [projectVoter.address]
+  ]));
+  assert.ok(result.execResult.exceptionError, 'project releases cannot exceed the remaining budget');
+  result = await transact(dao, daoInterface.encodeFunctionData('setProjectBudget', [projectId, amount - 1n]));
+  assert.ok(result.execResult.exceptionError, 'project budget cannot be reduced below committed releases');
+  result = await transact(dao, daoInterface.encodeFunctionData('createProjectProposal', [
+    projectId, token, supplier.address, amount, [projectVoter.address]
+  ]));
+  assert.equal(result.execResult.exceptionError, undefined);
+  result = await transact(dao, daoInterface.encodeFunctionData('cancelProjectProposal', [3]));
+  assert.equal(result.execResult.exceptionError, undefined);
+  assert.equal((await call(dao, daoInterface, 'projectCommitted', [projectId]))[0], amount);
+
   result = await transact(token, tokenInterface.encodeFunctionData('approve', [escrow, amount * 2n]));
   assert.equal(result.execResult.exceptionError, undefined);
   const invoiceId = ethers.id('local-evm-invoice-1');
@@ -128,7 +176,7 @@ test('Paris DAO and escrow execute treasury operations on an isolated EVM', asyn
   assert.equal(result.execResult.exceptionError, undefined);
   result = await transact(escrow, escrowInterface.encodeFunctionData('release', [1]));
   assert.equal(result.execResult.exceptionError, undefined);
-  assert.equal((await call(token, tokenInterface, 'balanceOf', [supplier.address]))[0], amount * 2n);
+  assert.equal((await call(token, tokenInterface, 'balanceOf', [supplier.address]))[0], amount * 3n);
 
   result = await transact(escrow, escrowInterface.encodeFunctionData('createEscrow', [
     ethers.id('local-evm-invoice-2'), supplier.address, amount, timestamp + 1n
